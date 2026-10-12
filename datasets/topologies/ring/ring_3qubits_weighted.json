@@ -1,0 +1,59 @@
+{
+  "architecture_type": "ring",
+  "num_qubits": 3,
+  "qubit_properties": {
+    "0": {
+      "readout_error": 0.024395969512930046,
+      "readout_fidelity": 0.97560403048707,
+      "t1_coherence_us": 195.69089569224076
+    },
+    "1": {
+      "readout_error": 0.018923916645955205,
+      "readout_fidelity": 0.9810760833540448,
+      "t1_coherence_us": 142.97539875829992
+    },
+    "2": {
+      "readout_error": 0.0259146303809455,
+      "readout_fidelity": 0.9740853696190545,
+      "t1_coherence_us": 142.9758912915246
+    }
+  },
+  "coupling_map_weighted": [
+    {
+      "source_qubit": 0,
+      "target_qubit": 1,
+      "gate_error_rate": 0.03303794035731088,
+      "gate_fidelity": 0.9669620596426891
+    },
+    {
+      "source_qubit": 1,
+      "target_qubit": 0,
+      "gate_error_rate": 0.022015958256112498,
+      "gate_fidelity": 0.9779840417438875
+    },
+    {
+      "source_qubit": 1,
+      "target_qubit": 2,
+      "gate_error_rate": 0.01186167966767263,
+      "gate_fidelity": 0.9881383203323274
+    },
+    {
+      "source_qubit": 2,
+      "target_qubit": 1,
+      "gate_error_rate": 0.019674634610935104,
+      "gate_fidelity": 0.9803253653890649
+    },
+    {
+      "source_qubit": 2,
+      "target_qubit": 0,
+      "gate_error_rate": 0.011897655390488968,
+      "gate_fidelity": 0.9881023446095111
+    },
+    {
+      "source_qubit": 0,
+      "target_qubit": 2,
+      "gate_error_rate": 0.011883909286407727,
+      "gate_fidelity": 0.9881160907135923
+    }
+  ]
+}

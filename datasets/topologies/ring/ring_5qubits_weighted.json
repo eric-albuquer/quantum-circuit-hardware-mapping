@@ -1,0 +1,93 @@
+{
+  "architecture_type": "ring",
+  "num_qubits": 5,
+  "qubit_properties": {
+    "0": {
+      "readout_error": 0.024395969512930046,
+      "readout_fidelity": 0.97560403048707,
+      "t1_coherence_us": 142.9758912915246
+    },
+    "1": {
+      "readout_error": 0.018923916645955205,
+      "readout_fidelity": 0.9810760833540448,
+      "t1_coherence_us": 197.37638446522175
+    },
+    "2": {
+      "readout_error": 0.0259146303809455,
+      "readout_fidelity": 0.9740853696190545,
+      "t1_coherence_us": 173.02304187458725
+    },
+    "3": {
+      "readout_error": 0.03677963208933107,
+      "readout_fidelity": 0.9632203679106689,
+      "t1_coherence_us": 135.91576842195144
+    },
+    "4": {
+      "readout_error": 0.018211821636044335,
+      "readout_fidelity": 0.9817881783639557,
+      "t1_coherence_us": 166.27680130757895
+    }
+  },
+  "coupling_map_weighted": [
+    {
+      "source_qubit": 0,
+      "target_qubit": 1,
+      "gate_error_rate": 0.011897655390488968,
+      "gate_fidelity": 0.9881023446095111
+    },
+    {
+      "source_qubit": 1,
+      "target_qubit": 0,
+      "gate_error_rate": 0.011883909286407727,
+      "gate_fidelity": 0.9881160907135923
+    },
+    {
+      "source_qubit": 1,
+      "target_qubit": 2,
+      "gate_error_rate": 0.016929054329143784,
+      "gate_fidelity": 0.9830709456708562
+    },
+    {
+      "source_qubit": 2,
+      "target_qubit": 1,
+      "gate_error_rate": 0.005762722842779946,
+      "gate_fidelity": 0.9942372771572201
+    },
+    {
+      "source_qubit": 2,
+      "target_qubit": 3,
+      "gate_error_rate": 0.006331842606336297,
+      "gate_fidelity": 0.9936681573936637
+    },
+    {
+      "source_qubit": 3,
+      "target_qubit": 2,
+      "gate_error_rate": 0.011323796953804359,
+      "gate_fidelity": 0.9886762030461956
+    },
+    {
+      "source_qubit": 3,
+      "target_qubit": 4,
+      "gate_error_rate": 0.009039778220159979,
+      "gate_fidelity": 0.99096022177984
+    },
+    {
+      "source_qubit": 4,
+      "target_qubit": 3,
+      "gate_error_rate": 0.01755210467810524,
+      "gate_fidelity": 0.9824478953218948
+    },
+    {
+      "source_qubit": 4,
+      "target_qubit": 0,
+      "gate_error_rate": 0.009526126324770515,
+      "gate_fidelity": 0.9904738736752294
+    },
+    {
+      "source_qubit": 0,
+      "target_qubit": 4,
+      "gate_error_rate": 0.007403096439313736,
+      "gate_fidelity": 0.9925969035606863
+    }
+  ]
+}
