@@ -1,0 +1,4 @@
+algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+grover,grover_3qubits,3,0,1,0
+grover,grover_3qubits,3,0,2,0
+grover,grover_3qubits,3,1,2,0

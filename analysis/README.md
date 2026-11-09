@@ -10,10 +10,12 @@ Generate a pairwise interaction dataset from the QASM circuits in
 python -m analysis.generate_algorithm_interactions
 ```
 
-The output is grouped by algorithm under
-`datasets/interaction_analysis/algorithms/<algorithm>/pair_interactions.csv`.
-Each row represents one unordered qubit pair in one circuit. Pairs with no
-two-qubit gates are included with an `interaction_count` of `0`.
+The output is grouped by algorithm and qubit count under
+`datasets/interaction_analysis/algorithms/<algorithm>/`. For example,
+`ghz/pair_interactions_5qubits.csv` contains the pairwise interactions for
+five-qubit GHZ circuits. Each row represents one unordered qubit pair in one
+circuit. Pairs with no two-qubit gates are included with an
+`interaction_count` of `0`.
 
 The columns are `algorithm`, `circuit`, `num_qubits`, `qubit_1`, `qubit_2`, and
 `interaction_count`. The count is the number of two-qubit instructions between

@@ -33,7 +33,9 @@ def generate_algorithm_interaction_dataset(
     if not circuit_paths:
         raise FileNotFoundError(f"No QASM circuits found in: {input_root}")
 
-    rows_by_algorithm: dict[str, list[dict[str, str | int]]] = defaultdict(list)
+    rows_by_algorithm_and_qubit_count: dict[
+        str, dict[int, list[dict[str, str | int]]]
+    ] = defaultdict(lambda: defaultdict(list))
     failed_circuits = 0
 
     for circuit_path in circuit_paths:
@@ -45,9 +47,10 @@ def generate_algorithm_interaction_dataset(
             LOGGER.exception("Failed to analyze circuit: %s", circuit_path)
             continue
 
+        rows = rows_by_algorithm_and_qubit_count[algorithm][qubit_count]
         for first in range(qubit_count):
             for second in range(first + 1, qubit_count):
-                rows_by_algorithm[algorithm].append(
+                rows.append(
                     {
                         "algorithm": algorithm,
                         "circuit": circuit_path.stem,
@@ -58,19 +61,26 @@ def generate_algorithm_interaction_dataset(
                     }
                 )
 
-    for algorithm, rows in rows_by_algorithm.items():
+    files_written = 0
+    for algorithm, rows_by_qubit_count in rows_by_algorithm_and_qubit_count.items():
         algorithm_dir = output_root / algorithm
         algorithm_dir.mkdir(parents=True, exist_ok=True)
-        pd.DataFrame(rows, columns=COLUMNS).to_csv(
-            algorithm_dir / "pair_interactions.csv",
-            index=False,
-        )
+        for qubit_count, rows in rows_by_qubit_count.items():
+            pd.DataFrame(rows, columns=COLUMNS).to_csv(
+                algorithm_dir / f"pair_interactions_{qubit_count}qubits.csv",
+                index=False,
+            )
+            files_written += 1
+
+        legacy_path = algorithm_dir / "pair_interactions.csv"
+        if legacy_path.exists():
+            legacy_path.unlink()
 
     LOGGER.info(
-        "Interaction dataset complete: %d circuits analyzed, %d failed, %d algorithm files written.",
+        "Interaction dataset complete: %d circuits analyzed, %d failed, %d files written.",
         len(circuit_paths) - failed_circuits,
         failed_circuits,
-        len(rows_by_algorithm),
+        files_written,
     )
     return len(circuit_paths), failed_circuits
 

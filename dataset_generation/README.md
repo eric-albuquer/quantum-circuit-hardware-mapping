@@ -26,4 +26,5 @@ The interaction analysis utility is kept separate from generation and can be
 run with `python -m analysis.interactions [path]`. To create a pairwise
 interaction dataset for all algorithm circuits, run
 `python -m analysis.generate_algorithm_interactions`. Its output is grouped by
-algorithm under `datasets/interaction_analysis/algorithms/`.
+algorithm and qubit count under `datasets/interaction_analysis/algorithms/`,
+with one `pair_interactions_<count>qubits.csv` file per variation.

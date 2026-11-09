@@ -1,0 +1,4 @@
+algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+qftentangled,qftentangled_3qubits,3,0,1,1
+qftentangled,qftentangled_3qubits,3,0,2,0
+qftentangled,qftentangled_3qubits,3,1,2,1

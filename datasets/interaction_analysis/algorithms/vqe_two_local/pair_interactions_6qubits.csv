@@ -1,0 +1,16 @@
+algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+vqe_two_local,vqe_two_local_6qubits,6,0,1,3
+vqe_two_local,vqe_two_local_6qubits,6,0,2,3
+vqe_two_local,vqe_two_local_6qubits,6,0,3,3
+vqe_two_local,vqe_two_local_6qubits,6,0,4,3
+vqe_two_local,vqe_two_local_6qubits,6,0,5,3
+vqe_two_local,vqe_two_local_6qubits,6,1,2,3
+vqe_two_local,vqe_two_local_6qubits,6,1,3,3
+vqe_two_local,vqe_two_local_6qubits,6,1,4,3
+vqe_two_local,vqe_two_local_6qubits,6,1,5,3
+vqe_two_local,vqe_two_local_6qubits,6,2,3,3
+vqe_two_local,vqe_two_local_6qubits,6,2,4,3
+vqe_two_local,vqe_two_local_6qubits,6,2,5,3
+vqe_two_local,vqe_two_local_6qubits,6,3,4,3
+vqe_two_local,vqe_two_local_6qubits,6,3,5,3
+vqe_two_local,vqe_two_local_6qubits,6,4,5,3

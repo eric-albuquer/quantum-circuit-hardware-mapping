@@ -1,0 +1,4 @@
+algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+half_adder,half_adder_3qubits,3,0,1,0
+half_adder,half_adder_3qubits,3,0,2,0
+half_adder,half_adder_3qubits,3,1,2,0

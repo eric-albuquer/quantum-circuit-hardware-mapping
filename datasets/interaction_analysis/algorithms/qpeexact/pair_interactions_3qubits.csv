@@ -1,0 +1,4 @@
+algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+qpeexact,qpeexact_3qubits,3,0,1,2
+qpeexact,qpeexact_3qubits,3,0,2,1
+qpeexact,qpeexact_3qubits,3,1,2,0

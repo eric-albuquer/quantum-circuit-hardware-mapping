@@ -131,7 +131,7 @@ datasets/
     random/*.qasm
   topologies/<topology>/*_weighted.json
   topologies/<topology>/*_weighted_edges.csv
-  interaction_analysis/algorithms/<categoria>/pair_interactions.csv
+  interaction_analysis/algorithms/<categoria>/pair_interactions_<quantidade>qubits.csv
   interaction_order/algorithms/<categoria>/*_ordered_interactions.csv
 docs/
   assets/ghz_5qubits_qiskit.txt
@@ -240,11 +240,12 @@ python -m analysis.generate_algorithm_interactions
 
 Para cada circuito QASM, a análise conta as instruções de dois qubits de cada
 par não ordenado de qubits lógicos. Pares que nunca interagem são incluídos
-com contagem zero. É gravado um CSV por benchmark ou categoria de circuito:
+com contagem zero. É gravado um CSV por variação de quantidade de qubits em
+cada benchmark ou categoria de circuito:
 
 ```text
-datasets/interaction_analysis/algorithms/ghz/pair_interactions.csv
-datasets/interaction_analysis/algorithms/random/pair_interactions.csv
+datasets/interaction_analysis/algorithms/ghz/pair_interactions_5qubits.csv
+datasets/interaction_analysis/algorithms/random/pair_interactions_4qubits.csv
 ```
 
 | Coluna | Significado |

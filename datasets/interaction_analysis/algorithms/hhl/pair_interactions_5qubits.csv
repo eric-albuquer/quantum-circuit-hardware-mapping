@@ -1,0 +1,11 @@
+algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+hhl,hhl_5qubits,5,0,1,2
+hhl,hhl_5qubits,5,0,2,2
+hhl,hhl_5qubits,5,0,3,2
+hhl,hhl_5qubits,5,0,4,0
+hhl,hhl_5qubits,5,1,2,0
+hhl,hhl_5qubits,5,1,3,0
+hhl,hhl_5qubits,5,1,4,1
+hhl,hhl_5qubits,5,2,3,0
+hhl,hhl_5qubits,5,2,4,1
+hhl,hhl_5qubits,5,3,4,1
