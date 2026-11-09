@@ -1,4 +1,4 @@
-from mapping.dependency_graph.graph import *
+from src.mapping.dependency_graph.graph import *
 import csv
 
 def load_dependency_graph(interaction_order_path: str):

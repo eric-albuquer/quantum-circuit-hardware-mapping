@@ -1,5 +1,3 @@
-from typing import NamedTuple
-
 class TopologyEdge:
     def __init__(self, source_qubit, target_qubit, gate_error_rate, _):
         self.qubit_1 = int(source_qubit)

@@ -1,5 +1,3 @@
-from typing import NamedTuple
-
 class InteractionEdge:
     def __init__(self, algorithm, circuit, num_qubits, qubit_1, qubit_2, interaction_count):
         self.algorithm = algorithm
