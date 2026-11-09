@@ -11,8 +11,7 @@ class InteractionEdge:
 
 class InteractionGraph:
     def __init__(self, edges: list[InteractionEdge]):
-        self.graph: dict[int, dict[int, int]] = {}
-                        # q1 -> { q2 -> count}
+        self.graph: dict[int, dict[int, int]] = {} # q1 -> { q2 -> count}
 
         for e in edges:
             q1 = e.qubit_1
