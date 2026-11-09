@@ -1,0 +1,13 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+bv,bv_25qubits,25,0,25,cz,2,0
+bv,bv_25qubits,25,1,26,cz,4,0
+bv,bv_25qubits,25,2,27,cz,6,0
+bv,bv_25qubits,25,3,28,cz,8,0
+bv,bv_25qubits,25,4,29,cz,10,0
+bv,bv_25qubits,25,5,30,cz,12,0
+bv,bv_25qubits,25,6,31,cz,14,0
+bv,bv_25qubits,25,7,32,cz,16,0
+bv,bv_25qubits,25,8,33,cz,18,0
+bv,bv_25qubits,25,9,34,cz,20,0
+bv,bv_25qubits,25,10,35,cz,22,0
+bv,bv_25qubits,25,11,36,cz,24,0

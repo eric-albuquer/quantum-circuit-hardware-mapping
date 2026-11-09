@@ -1,0 +1,17 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+wstate,wstate_9qubits,9,0,2,cz,8,7
+wstate,wstate_9qubits,9,1,5,cz,7,6
+wstate,wstate_9qubits,9,2,8,cz,6,5
+wstate,wstate_9qubits,9,3,11,cz,5,4
+wstate,wstate_9qubits,9,4,14,cz,4,3
+wstate,wstate_9qubits,9,5,17,cz,3,2
+wstate,wstate_9qubits,9,6,20,cz,2,1
+wstate,wstate_9qubits,9,7,23,cz,1,0
+wstate,wstate_9qubits,9,8,25,cx,7,8
+wstate,wstate_9qubits,9,9,26,cx,6,7
+wstate,wstate_9qubits,9,10,27,cx,5,6
+wstate,wstate_9qubits,9,11,28,cx,4,5
+wstate,wstate_9qubits,9,12,29,cx,3,4
+wstate,wstate_9qubits,9,13,30,cx,2,3
+wstate,wstate_9qubits,9,14,31,cx,1,2
+wstate,wstate_9qubits,9,15,32,cx,0,1

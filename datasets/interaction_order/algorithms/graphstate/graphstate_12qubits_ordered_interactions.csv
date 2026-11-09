@@ -1,0 +1,13 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+graphstate,graphstate_12qubits,12,0,4,cz,0,3
+graphstate,graphstate_12qubits,12,1,7,cz,0,5
+graphstate,graphstate_12qubits,12,2,8,cz,3,5
+graphstate,graphstate_12qubits,12,3,10,cz,2,6
+graphstate,graphstate_12qubits,12,4,12,cz,2,7
+graphstate,graphstate_12qubits,12,5,14,cz,1,8
+graphstate,graphstate_12qubits,12,6,15,cz,4,8
+graphstate,graphstate_12qubits,12,7,17,cz,4,9
+graphstate,graphstate_12qubits,12,8,19,cz,1,10
+graphstate,graphstate_12qubits,12,9,20,cz,6,10
+graphstate,graphstate_12qubits,12,10,22,cz,7,11
+graphstate,graphstate_12qubits,12,11,23,cz,9,11

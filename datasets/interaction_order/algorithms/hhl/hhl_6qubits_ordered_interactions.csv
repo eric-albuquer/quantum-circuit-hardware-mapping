@@ -1,0 +1,13 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+hhl,hhl_6qubits,6,0,5,cp,1,0
+hhl,hhl_6qubits,6,1,6,cp,2,0
+hhl,hhl_6qubits,6,2,7,cp,3,0
+hhl,hhl_6qubits,6,3,8,cp,4,0
+hhl,hhl_6qubits,6,4,10,cry,1,5
+hhl,hhl_6qubits,6,5,11,cry,2,5
+hhl,hhl_6qubits,6,6,12,cry,3,5
+hhl,hhl_6qubits,6,7,13,cry,4,5
+hhl,hhl_6qubits,6,8,15,cp,4,0
+hhl,hhl_6qubits,6,9,16,cp,3,0
+hhl,hhl_6qubits,6,10,17,cp,2,0
+hhl,hhl_6qubits,6,11,18,cp,1,0

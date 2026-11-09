@@ -1,0 +1,6 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+qpeexact,qpeexact_4qubits,4,0,4,cp,3,0
+qpeexact,qpeexact_4qubits,4,1,5,swap,0,2
+qpeexact,qpeexact_4qubits,4,2,7,cp,1,0
+qpeexact,qpeexact_4qubits,4,3,9,cp,2,0
+qpeexact,qpeexact_4qubits,4,4,10,cp,2,1

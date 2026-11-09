@@ -1,0 +1,2 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+bv,bv_4qubits,4,0,4,cz,2,0

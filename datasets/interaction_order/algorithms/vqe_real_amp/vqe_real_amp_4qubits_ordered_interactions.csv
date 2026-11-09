@@ -1,0 +1,10 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+vqe_real_amp,vqe_real_amp_4qubits,4,0,4,cx,2,3
+vqe_real_amp,vqe_real_amp_4qubits,4,1,5,cx,1,2
+vqe_real_amp,vqe_real_amp_4qubits,4,2,6,cx,0,1
+vqe_real_amp,vqe_real_amp_4qubits,4,3,11,cx,2,3
+vqe_real_amp,vqe_real_amp_4qubits,4,4,12,cx,1,2
+vqe_real_amp,vqe_real_amp_4qubits,4,5,13,cx,0,1
+vqe_real_amp,vqe_real_amp_4qubits,4,6,18,cx,2,3
+vqe_real_amp,vqe_real_amp_4qubits,4,7,19,cx,1,2
+vqe_real_amp,vqe_real_amp_4qubits,4,8,20,cx,0,1

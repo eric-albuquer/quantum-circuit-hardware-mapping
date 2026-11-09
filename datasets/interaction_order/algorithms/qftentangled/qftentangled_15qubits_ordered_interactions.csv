@@ -1,0 +1,15 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+qftentangled,qftentangled_15qubits,15,0,1,cx,14,13
+qftentangled,qftentangled_15qubits,15,1,2,cx,13,12
+qftentangled,qftentangled_15qubits,15,2,3,cx,12,11
+qftentangled,qftentangled_15qubits,15,3,4,cx,11,10
+qftentangled,qftentangled_15qubits,15,4,5,cx,10,9
+qftentangled,qftentangled_15qubits,15,5,6,cx,9,8
+qftentangled,qftentangled_15qubits,15,6,7,cx,8,7
+qftentangled,qftentangled_15qubits,15,7,8,cx,7,6
+qftentangled,qftentangled_15qubits,15,8,9,cx,6,5
+qftentangled,qftentangled_15qubits,15,9,10,cx,5,4
+qftentangled,qftentangled_15qubits,15,10,11,cx,4,3
+qftentangled,qftentangled_15qubits,15,11,12,cx,3,2
+qftentangled,qftentangled_15qubits,15,12,13,cx,2,1
+qftentangled,qftentangled_15qubits,15,13,14,cx,1,0

@@ -1,0 +1,5 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+qaoa,qaoa_4qubits,4,0,4,rzz,0,1
+qaoa,qaoa_4qubits,4,1,5,rzz,1,2
+qaoa,qaoa_4qubits,4,2,10,rzz,0,1
+qaoa,qaoa_4qubits,4,3,11,rzz,1,2

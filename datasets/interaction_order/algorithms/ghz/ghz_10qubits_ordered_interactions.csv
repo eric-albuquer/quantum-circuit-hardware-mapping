@@ -1,0 +1,10 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+ghz,ghz_10qubits,10,0,1,cx,9,8
+ghz,ghz_10qubits,10,1,2,cx,8,7
+ghz,ghz_10qubits,10,2,3,cx,7,6
+ghz,ghz_10qubits,10,3,4,cx,6,5
+ghz,ghz_10qubits,10,4,5,cx,5,4
+ghz,ghz_10qubits,10,5,6,cx,4,3
+ghz,ghz_10qubits,10,6,7,cx,3,2
+ghz,ghz_10qubits,10,7,8,cx,2,1
+ghz,ghz_10qubits,10,8,9,cx,1,0

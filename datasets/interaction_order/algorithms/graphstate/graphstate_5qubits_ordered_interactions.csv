@@ -1,0 +1,6 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+graphstate,graphstate_5qubits,5,0,3,cz,0,2
+graphstate,graphstate_5qubits,5,1,4,cz,1,2
+graphstate,graphstate_5qubits,5,2,6,cz,0,3
+graphstate,graphstate_5qubits,5,3,8,cz,1,4
+graphstate,graphstate_5qubits,5,4,9,cz,3,4

@@ -1,0 +1,7 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+bmw_quark_copula,bmw_quark_copula_4qubits,4,0,2,cx,0,2
+bmw_quark_copula,bmw_quark_copula_4qubits,4,1,3,cx,1,3
+bmw_quark_copula,bmw_quark_copula_4qubits,4,2,17,rxx,0,1
+bmw_quark_copula,bmw_quark_copula_4qubits,4,3,18,rxx,2,3
+bmw_quark_copula,bmw_quark_copula_4qubits,4,4,32,rxx,0,1
+bmw_quark_copula,bmw_quark_copula_4qubits,4,5,33,rxx,2,3

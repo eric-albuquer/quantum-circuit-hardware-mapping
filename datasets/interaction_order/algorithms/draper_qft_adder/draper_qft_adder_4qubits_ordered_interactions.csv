@@ -1,0 +1,6 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+draper_qft_adder,draper_qft_adder_4qubits,4,0,0,circuit_287,2,3
+draper_qft_adder,draper_qft_adder_4qubits,4,1,1,cp,0,2
+draper_qft_adder,draper_qft_adder_4qubits,4,2,2,cp,0,3
+draper_qft_adder,draper_qft_adder_4qubits,4,3,3,cp,1,3
+draper_qft_adder,draper_qft_adder_4qubits,4,4,4,circuit_287_dg,2,3

@@ -1,0 +1,7 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+vqe_su2,vqe_su2_3qubits,3,0,6,cx,1,2
+vqe_su2,vqe_su2_3qubits,3,1,7,cx,0,1
+vqe_su2,vqe_su2_3qubits,3,2,14,cx,1,2
+vqe_su2,vqe_su2_3qubits,3,3,15,cx,0,1
+vqe_su2,vqe_su2_3qubits,3,4,22,cx,1,2
+vqe_su2,vqe_su2_3qubits,3,5,23,cx,0,1

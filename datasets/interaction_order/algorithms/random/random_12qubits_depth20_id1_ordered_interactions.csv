@@ -1,0 +1,12 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+random,random_12qubits_depth20_id1,12,0,1,dcx,11,1
+random,random_12qubits_depth20_id1,12,1,31,crz,7,10
+random,random_12qubits_depth20_id1,12,2,60,swap,5,9
+random,random_12qubits_depth20_id1,12,3,73,rxx,8,3
+random,random_12qubits_depth20_id1,12,4,77,csdg,10,4
+random,random_12qubits_depth20_id1,12,5,86,cp,4,2
+random,random_12qubits_depth20_id1,12,6,107,cu3,9,4
+random,random_12qubits_depth20_id1,12,7,130,cry,8,11
+random,random_12qubits_depth20_id1,12,8,145,cp,6,2
+random,random_12qubits_depth20_id1,12,9,155,rzx,6,10
+random,random_12qubits_depth20_id1,12,10,186,rxx,2,11

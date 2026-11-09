@@ -107,6 +107,7 @@ The later analysis stage should provide:
 ```text
 analysis/
   generate_algorithm_interactions.py
+  generate_ordered_interactions.py
   interactions.py
 dataset_generation/
   benchmarks.py
@@ -120,6 +121,8 @@ datasets/
   topologies/<topology>/*_weighted.json
   topologies/<topology>/*_weighted_edges.csv
   interaction_analysis/algorithms/<category>/pair_interactions.csv
+  interaction_order/algorithms/<category>/*_ordered_interactions.csv
+  interaction_order/algorithms/<category>/*_ordered_interactions.csv
 docs/
   assets/ghz_5qubits_qiskit.txt
 ```
@@ -138,6 +141,7 @@ The checked-in/generated snapshot currently contains:
 | Random circuits | Generated OpenQASM 3 circuits | 15 circuits: 4, 6, 8, 10, and 12 qubits at depths 10, 20, and 30 |
 | Weighted topologies | JSON metadata and CSV edge lists | 63 coupling maps, each represented in both formats (126 files) |
 | Pairwise interactions | One CSV per circuit category/algorithm, derived from its QASM circuits | 29 CSV files and 75,767 pair/circuit rows |
+| Ordered interactions | One ordered two-qubit edge-list CSV per algorithm circuit | 531 CSV files and 37,804 interaction rows |
 
 These counts describe the current snapshot. Benchmark availability can vary
 with MQT Bench versions and supported circuit sizes.
@@ -244,6 +248,26 @@ counts all two-qubit instruction types together, ignores gate direction and
 operation order, and does not model multi-qubit gates as pairwise interactions.
 The diagonal/self-pairs are not included.
 
+### Ordered interaction edge lists
+
+Generate a per-circuit edge list that retains the order of two-qubit
+operations:
+
+```powershell
+python -m analysis.generate_ordered_interactions
+```
+
+Each two-qubit instruction is a separate row in
+`datasets/interaction_order/algorithms/<algorithm>/<circuit>_ordered_interactions.csv`.
+Repeated edges are preserved. `interaction_index` gives the zero-based order
+among two-qubit operations; `instruction_index` gives the zero-based position
+in the complete Qiskit circuit. `gate` records the instruction name, and
+`qubit_1` / `qubit_2` retain operand order (important for directed gates such
+as `cx`). Single-qubit instructions, measurements, and barriers are omitted.
+This sequence is suitable as the ordered edge input for constructing a
+dependency graph; it is distinct from the aggregated, undirected pairwise
+interaction summary above.
+
 ## Quick start
 
 Use Python 3.12 or a compatible version. From the project root in PowerShell:
@@ -258,7 +282,7 @@ If creating a new environment, install the packages used by the generators:
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install qiskit mqt.bench numpy pandas
+python -m pip install qiskit qiskit_qasm3_import mqt.bench numpy pandas
 ```
 
 Generate all three source datasets:
@@ -280,6 +304,12 @@ files are available:
 
 ```powershell
 python -m analysis.generate_algorithm_interactions
+```
+
+Generate (or refresh) per-circuit ordered interaction edge lists:
+
+```powershell
+python -m analysis.generate_ordered_interactions
 ```
 
 Inspect interactions for a QASM file or all QASM files under a directory:

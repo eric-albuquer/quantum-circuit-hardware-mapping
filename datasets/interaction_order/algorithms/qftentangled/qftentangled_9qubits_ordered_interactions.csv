@@ -1,0 +1,9 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+qftentangled,qftentangled_9qubits,9,0,1,cx,8,7
+qftentangled,qftentangled_9qubits,9,1,2,cx,7,6
+qftentangled,qftentangled_9qubits,9,2,3,cx,6,5
+qftentangled,qftentangled_9qubits,9,3,4,cx,5,4
+qftentangled,qftentangled_9qubits,9,4,5,cx,4,3
+qftentangled,qftentangled_9qubits,9,5,6,cx,3,2
+qftentangled,qftentangled_9qubits,9,6,7,cx,2,1
+qftentangled,qftentangled_9qubits,9,7,8,cx,1,0

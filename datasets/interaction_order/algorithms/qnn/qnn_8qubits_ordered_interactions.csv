@@ -1,0 +1,8 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+qnn,qnn_8qubits,8,0,40,cx,6,7
+qnn,qnn_8qubits,8,1,41,cx,5,6
+qnn,qnn_8qubits,8,2,42,cx,4,5
+qnn,qnn_8qubits,8,3,43,cx,3,4
+qnn,qnn_8qubits,8,4,44,cx,2,3
+qnn,qnn_8qubits,8,5,45,cx,1,2
+qnn,qnn_8qubits,8,6,46,cx,0,1

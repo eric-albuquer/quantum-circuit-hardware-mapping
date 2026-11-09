@@ -36,6 +36,36 @@ def analyze_interactions(path: Path) -> tuple[int, np.ndarray]:
     return qubit_count, interaction_matrix
 
 
+def analyze_ordered_interactions(
+    path: Path,
+) -> tuple[int, list[tuple[int, int, str, int, int]]]:
+    """Return two-qubit operations in circuit order.
+
+    Each tuple contains the interaction index, original instruction index,
+    gate name, and the two operands in their original order.
+    """
+    circuit = load_circuit(path)
+    interactions = []
+
+    for instruction_index, instruction in enumerate(circuit.data):
+        if len(instruction.qubits) != 2:
+            continue
+
+        first = circuit.find_bit(instruction.qubits[0]).index
+        second = circuit.find_bit(instruction.qubits[1]).index
+        interactions.append(
+            (
+                len(interactions),
+                instruction_index,
+                instruction.operation.name,
+                first,
+                second,
+            )
+        )
+
+    return circuit.num_qubits, interactions
+
+
 def display_interactions(path: Path) -> None:
     qubit_count, matrix = analyze_interactions(path)
     labels = [f"Q{index}" for index in range(qubit_count)]

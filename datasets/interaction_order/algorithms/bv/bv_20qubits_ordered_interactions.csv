@@ -1,0 +1,10 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+bv,bv_20qubits,20,0,20,cz,2,0
+bv,bv_20qubits,20,1,21,cz,4,0
+bv,bv_20qubits,20,2,22,cz,6,0
+bv,bv_20qubits,20,3,23,cz,8,0
+bv,bv_20qubits,20,4,24,cz,10,0
+bv,bv_20qubits,20,5,25,cz,12,0
+bv,bv_20qubits,20,6,26,cz,14,0
+bv,bv_20qubits,20,7,27,cz,16,0
+bv,bv_20qubits,20,8,28,cz,18,0

@@ -1,0 +1,4 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+hhl,hhl_3qubits,3,0,2,cp,1,0
+hhl,hhl_3qubits,3,1,4,cry,1,2
+hhl,hhl_3qubits,3,2,6,cp,1,0

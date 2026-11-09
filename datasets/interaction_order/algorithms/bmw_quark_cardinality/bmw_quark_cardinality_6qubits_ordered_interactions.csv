@@ -1,0 +1,16 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+bmw_quark_cardinality,bmw_quark_cardinality_6qubits,6,0,13,rxx,0,1
+bmw_quark_cardinality,bmw_quark_cardinality_6qubits,6,1,14,rxx,1,2
+bmw_quark_cardinality,bmw_quark_cardinality_6qubits,6,2,15,rxx,2,3
+bmw_quark_cardinality,bmw_quark_cardinality_6qubits,6,3,16,rxx,3,4
+bmw_quark_cardinality,bmw_quark_cardinality_6qubits,6,4,17,rxx,4,5
+bmw_quark_cardinality,bmw_quark_cardinality_6qubits,6,5,32,rxx,0,1
+bmw_quark_cardinality,bmw_quark_cardinality_6qubits,6,6,33,rxx,1,2
+bmw_quark_cardinality,bmw_quark_cardinality_6qubits,6,7,34,rxx,2,3
+bmw_quark_cardinality,bmw_quark_cardinality_6qubits,6,8,35,rxx,3,4
+bmw_quark_cardinality,bmw_quark_cardinality_6qubits,6,9,36,rxx,4,5
+bmw_quark_cardinality,bmw_quark_cardinality_6qubits,6,10,57,rxx,0,1
+bmw_quark_cardinality,bmw_quark_cardinality_6qubits,6,11,58,rxx,1,2
+bmw_quark_cardinality,bmw_quark_cardinality_6qubits,6,12,59,rxx,2,3
+bmw_quark_cardinality,bmw_quark_cardinality_6qubits,6,13,60,rxx,3,4
+bmw_quark_cardinality,bmw_quark_cardinality_6qubits,6,14,61,rxx,4,5

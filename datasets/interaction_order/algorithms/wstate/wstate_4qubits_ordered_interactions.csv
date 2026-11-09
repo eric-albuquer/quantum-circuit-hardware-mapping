@@ -1,0 +1,7 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+wstate,wstate_4qubits,4,0,2,cz,3,2
+wstate,wstate_4qubits,4,1,5,cz,2,1
+wstate,wstate_4qubits,4,2,8,cz,1,0
+wstate,wstate_4qubits,4,3,10,cx,2,3
+wstate,wstate_4qubits,4,4,11,cx,1,2
+wstate,wstate_4qubits,4,5,12,cx,0,1

@@ -118,6 +118,7 @@ A etapa de análise futura deve produzir:
 ```text
 analysis/
   generate_algorithm_interactions.py
+  generate_ordered_interactions.py
   interactions.py
 dataset_generation/
   benchmarks.py
@@ -131,6 +132,7 @@ datasets/
   topologies/<topology>/*_weighted.json
   topologies/<topology>/*_weighted_edges.csv
   interaction_analysis/algorithms/<categoria>/pair_interactions.csv
+  interaction_order/algorithms/<categoria>/*_ordered_interactions.csv
 docs/
   assets/ghz_5qubits_qiskit.txt
 ```
@@ -148,6 +150,7 @@ O snapshot atual contém:
 | Circuitos de algoritmos | Circuitos do MQT Bench em OpenQASM 2, agrupados por benchmark | 516 circuitos em 28 pastas de benchmark |
 | Circuitos aleatórios | Circuitos gerados em OpenQASM 3 | 15 circuitos: 4, 6, 8, 10 e 12 qubits nas profundidades 10, 20 e 30 |
 | Topologias ponderadas | Metadados JSON e listas de arestas CSV | 63 mapas de acoplamento, cada um representado nos dois formatos (126 arquivos) |
+| Interações ordenadas | Um CSV de lista de arestas ordenadas de dois qubits por circuito de algoritmo | 531 arquivos CSV e 37.804 linhas de interação |
 | Interações por pares | Um CSV por categoria/algoritmo, derivado dos circuitos QASM | 29 CSVs e 75.767 linhas circuito/par |
 
 Essas quantidades descrevem o snapshot atual. A disponibilidade de benchmarks
@@ -258,6 +261,26 @@ a direção da porta ou a ordem das operações; portas com mais de dois qubits
 não são convertidas em interações por pares. Pares de um qubit consigo mesmo
 não são incluídos.
 
+### Listas de arestas de interação ordenadas
+
+Gere uma lista de arestas por circuito que preserve a ordem das operações de
+dois qubits:
+
+```powershell
+python -m analysis.generate_ordered_interactions
+```
+
+Cada instrução de dois qubits é uma linha separada em
+`datasets/interaction_order/algorithms/<algoritmo>/<circuito>_ordered_interactions.csv`.
+Arestas repetidas são preservadas. `interaction_index` indica a ordem baseada
+em zero entre as operações de dois qubits; `instruction_index` indica a
+posição baseada em zero no circuito Qiskit completo. `gate` registra o nome
+da instrução, e `qubit_1` / `qubit_2` preservam a ordem dos operandos
+(importante para portas direcionadas como `cx`). Instruções de um qubit,
+medições e barreiras são omitidas. Essa sequência pode ser usada como entrada
+ordenada de arestas para construir um grafo de dependências; ela é diferente
+do resumo agregado e não direcionado de interações por pares acima.
+
 ## Início rápido
 
 Use Python 3.12 ou uma versão compatível. Na raiz do projeto, no PowerShell:
@@ -272,7 +295,7 @@ Para criar um ambiente novo, instale os pacotes utilizados pelos geradores:
 ```powershell
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install qiskit mqt.bench numpy pandas
+python -m pip install qiskit qiskit_qasm3_import mqt.bench numpy pandas
 ```
 
 Gere os três datasets de origem:

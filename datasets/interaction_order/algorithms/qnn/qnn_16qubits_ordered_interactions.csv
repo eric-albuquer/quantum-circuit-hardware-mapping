@@ -1,0 +1,16 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+qnn,qnn_16qubits,16,0,80,cx,14,15
+qnn,qnn_16qubits,16,1,81,cx,13,14
+qnn,qnn_16qubits,16,2,82,cx,12,13
+qnn,qnn_16qubits,16,3,83,cx,11,12
+qnn,qnn_16qubits,16,4,84,cx,10,11
+qnn,qnn_16qubits,16,5,85,cx,9,10
+qnn,qnn_16qubits,16,6,86,cx,8,9
+qnn,qnn_16qubits,16,7,87,cx,7,8
+qnn,qnn_16qubits,16,8,88,cx,6,7
+qnn,qnn_16qubits,16,9,89,cx,5,6
+qnn,qnn_16qubits,16,10,90,cx,4,5
+qnn,qnn_16qubits,16,11,91,cx,3,4
+qnn,qnn_16qubits,16,12,92,cx,2,3
+qnn,qnn_16qubits,16,13,93,cx,1,2
+qnn,qnn_16qubits,16,14,94,cx,0,1

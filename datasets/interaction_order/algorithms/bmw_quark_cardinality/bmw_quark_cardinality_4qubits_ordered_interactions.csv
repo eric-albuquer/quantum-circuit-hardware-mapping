@@ -1,0 +1,10 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+bmw_quark_cardinality,bmw_quark_cardinality_4qubits,4,0,9,rxx,0,1
+bmw_quark_cardinality,bmw_quark_cardinality_4qubits,4,1,10,rxx,1,2
+bmw_quark_cardinality,bmw_quark_cardinality_4qubits,4,2,11,rxx,2,3
+bmw_quark_cardinality,bmw_quark_cardinality_4qubits,4,3,22,rxx,0,1
+bmw_quark_cardinality,bmw_quark_cardinality_4qubits,4,4,23,rxx,1,2
+bmw_quark_cardinality,bmw_quark_cardinality_4qubits,4,5,24,rxx,2,3
+bmw_quark_cardinality,bmw_quark_cardinality_4qubits,4,6,39,rxx,0,1
+bmw_quark_cardinality,bmw_quark_cardinality_4qubits,4,7,40,rxx,1,2
+bmw_quark_cardinality,bmw_quark_cardinality_4qubits,4,8,41,rxx,2,3

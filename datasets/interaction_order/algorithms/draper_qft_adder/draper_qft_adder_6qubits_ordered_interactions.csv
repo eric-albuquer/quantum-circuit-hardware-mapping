@@ -1,0 +1,7 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+draper_qft_adder,draper_qft_adder_6qubits,6,0,1,cp,0,3
+draper_qft_adder,draper_qft_adder_6qubits,6,1,2,cp,0,4
+draper_qft_adder,draper_qft_adder_6qubits,6,2,3,cp,0,5
+draper_qft_adder,draper_qft_adder_6qubits,6,3,4,cp,1,4
+draper_qft_adder,draper_qft_adder_6qubits,6,4,5,cp,1,5
+draper_qft_adder,draper_qft_adder_6qubits,6,5,6,cp,2,5

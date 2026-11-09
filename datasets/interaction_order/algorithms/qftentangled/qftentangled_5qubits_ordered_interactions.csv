@@ -1,0 +1,5 @@
+algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+qftentangled,qftentangled_5qubits,5,0,1,cx,4,3
+qftentangled,qftentangled_5qubits,5,1,2,cx,3,2
+qftentangled,qftentangled_5qubits,5,2,3,cx,2,1
+qftentangled,qftentangled_5qubits,5,3,4,cx,1,0
