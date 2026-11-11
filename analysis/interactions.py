@@ -47,20 +47,73 @@ def analyze_ordered_interactions(
     circuit = load_circuit(path)
     interactions = []
 
+    def append_two_qubit_operations(
+        definition: QuantumCircuit,
+        qubit_indices: list[int],
+        source_instruction_index: int,
+    ) -> None:
+        for instruction in definition.data:
+            if instruction.operation.name == "barrier":
+                continue
+            operands = [
+                qubit_indices[definition.find_bit(qubit).index]
+                for qubit in instruction.qubits
+            ]
+            if len(operands) == 2:
+                interactions.append(
+                    (
+                        len(interactions),
+                        source_instruction_index,
+                        instruction.operation.name,
+                        operands[0],
+                        operands[1],
+                    )
+                )
+            elif len(operands) > 2:
+                operation_definition = instruction.operation.definition
+                if operation_definition is None:
+                    raise ValueError(
+                        f"Cannot expand {len(operands)}-qubit instruction "
+                        f"'{instruction.operation.name}'"
+                    )
+                append_two_qubit_operations(
+                    operation_definition,
+                    operands,
+                    source_instruction_index,
+                )
+
     for instruction_index, instruction in enumerate(circuit.data):
-        if len(instruction.qubits) != 2:
+        if instruction.operation.name == "barrier":
+            continue
+        if len(instruction.qubits) < 2:
             continue
 
-        first = circuit.find_bit(instruction.qubits[0]).index
-        second = circuit.find_bit(instruction.qubits[1]).index
-        interactions.append(
-            (
-                len(interactions),
-                instruction_index,
-                instruction.operation.name,
-                first,
-                second,
+        operands = [
+            circuit.find_bit(qubit).index
+            for qubit in instruction.qubits
+        ]
+        if len(operands) == 2:
+            interactions.append(
+                (
+                    len(interactions),
+                    instruction_index,
+                    instruction.operation.name,
+                    operands[0],
+                    operands[1],
+                )
             )
+            continue
+
+        operation_definition = instruction.operation.definition
+        if operation_definition is None:
+            raise ValueError(
+                f"Cannot expand {len(operands)}-qubit instruction "
+                f"'{instruction.operation.name}'"
+            )
+        append_two_qubit_operations(
+            operation_definition,
+            operands,
+            instruction_index,
         )
 
     return circuit.num_qubits, interactions

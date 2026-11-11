@@ -3,3 +3,15 @@ qftentangled,qftentangled_5qubits,5,0,1,cx,4,3
 qftentangled,qftentangled_5qubits,5,1,2,cx,3,2
 qftentangled,qftentangled_5qubits,5,2,3,cx,2,1
 qftentangled,qftentangled_5qubits,5,3,4,cx,1,0
+qftentangled,qftentangled_5qubits,5,4,5,cp,4,3
+qftentangled,qftentangled_5qubits,5,5,5,cp,4,2
+qftentangled,qftentangled_5qubits,5,6,5,cp,4,1
+qftentangled,qftentangled_5qubits,5,7,5,cp,4,0
+qftentangled,qftentangled_5qubits,5,8,5,cp,3,2
+qftentangled,qftentangled_5qubits,5,9,5,cp,3,1
+qftentangled,qftentangled_5qubits,5,10,5,cp,3,0
+qftentangled,qftentangled_5qubits,5,11,5,cp,2,1
+qftentangled,qftentangled_5qubits,5,12,5,cp,2,0
+qftentangled,qftentangled_5qubits,5,13,5,cp,1,0
+qftentangled,qftentangled_5qubits,5,14,5,swap,0,4
+qftentangled,qftentangled_5qubits,5,15,5,swap,1,3

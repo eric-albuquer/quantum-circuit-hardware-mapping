@@ -1,1 +1,8 @@
 algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+dj,dj_8qubits,8,0,9,cx,0,7
+dj,dj_8qubits,8,1,9,cx,1,7
+dj,dj_8qubits,8,2,9,cx,2,7
+dj,dj_8qubits,8,3,9,cx,3,7
+dj,dj_8qubits,8,4,9,cx,4,7
+dj,dj_8qubits,8,5,9,cx,5,7
+dj,dj_8qubits,8,6,9,cx,6,7

@@ -1,1 +1,5 @@
 algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+qft,qft_3qubits,3,0,0,cp,2,1
+qft,qft_3qubits,3,1,0,cp,2,0
+qft,qft_3qubits,3,2,0,cp,1,0
+qft,qft_3qubits,3,3,0,swap,0,2

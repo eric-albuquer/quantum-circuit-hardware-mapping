@@ -1,1 +1,16 @@
 algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+dj,dj_16qubits,16,0,17,cx,0,15
+dj,dj_16qubits,16,1,17,cx,1,15
+dj,dj_16qubits,16,2,17,cx,2,15
+dj,dj_16qubits,16,3,17,cx,3,15
+dj,dj_16qubits,16,4,17,cx,4,15
+dj,dj_16qubits,16,5,17,cx,5,15
+dj,dj_16qubits,16,6,17,cx,6,15
+dj,dj_16qubits,16,7,17,cx,7,15
+dj,dj_16qubits,16,8,17,cx,8,15
+dj,dj_16qubits,16,9,17,cx,9,15
+dj,dj_16qubits,16,10,17,cx,10,15
+dj,dj_16qubits,16,11,17,cx,11,15
+dj,dj_16qubits,16,12,17,cx,12,15
+dj,dj_16qubits,16,13,17,cx,13,15
+dj,dj_16qubits,16,14,17,cx,14,15

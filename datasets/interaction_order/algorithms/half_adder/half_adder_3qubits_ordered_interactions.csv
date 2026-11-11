@@ -1,1 +1,8 @@
 algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
+half_adder,half_adder_3qubits,3,0,0,cx,1,2
+half_adder,half_adder_3qubits,3,1,0,cx,0,2
+half_adder,half_adder_3qubits,3,2,0,cx,1,2
+half_adder,half_adder_3qubits,3,3,0,cx,0,2
+half_adder,half_adder_3qubits,3,4,0,cx,0,1
+half_adder,half_adder_3qubits,3,5,0,cx,0,1
+half_adder,half_adder_3qubits,3,6,0,cx,0,1

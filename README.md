@@ -274,9 +274,11 @@ python -m analysis.generate_ordered_interactions
 
 Each two-qubit instruction is a separate row in
 `datasets/interaction_order/algorithms/<algorithm>/<circuit>_ordered_interactions.csv`.
-Repeated edges are preserved. `interaction_index` gives the zero-based order
-among two-qubit operations; `instruction_index` gives the zero-based position
-in the complete Qiskit circuit. `gate` records the instruction name, and
+Repeated edges are preserved. Multi-qubit custom gates are expanded into
+their defined instructions; each resulting interaction keeps the index of
+the original circuit instruction. `interaction_index` gives the zero-based
+order among two-qubit operations; `instruction_index` gives the zero-based
+position in the complete Qiskit circuit. `gate` records the instruction name, and
 `qubit_1` / `qubit_2` retain operand order (important for directed gates such
 as `cx`). Single-qubit instructions, measurements, and barriers are omitted.
 This sequence is suitable as the ordered edge input for constructing a

@@ -289,9 +289,11 @@ python -m analysis.generate_ordered_interactions
 
 Cada instrução de dois qubits é uma linha separada em
 `datasets/interaction_order/algorithms/<algoritmo>/<circuito>_ordered_interactions.csv`.
-Arestas repetidas são preservadas. `interaction_index` indica a ordem baseada
-em zero entre as operações de dois qubits; `instruction_index` indica a
-posição baseada em zero no circuito Qiskit completo. `gate` registra o nome
+Arestas repetidas são preservadas. Portas personalizadas com mais de dois
+qubits são expandidas em suas instruções definidas; cada interação resultante
+mantém o índice da instrução original do circuito. `interaction_index` indica
+a ordem baseada em zero entre as operações de dois qubits; `instruction_index`
+indica a posição baseada em zero no circuito Qiskit completo. `gate` registra o nome
 da instrução, e `qubit_1` / `qubit_2` preservam a ordem dos operandos
 (importante para portas direcionadas como `cx`). Instruções de um qubit,
 medições e barreiras são omitidas. Essa sequência pode ser usada como entrada
