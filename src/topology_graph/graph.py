@@ -1,4 +1,5 @@
 import heapq
+import math
 
 class TopologyEdge:
     def __init__(self, source_qubit, target_qubit, gate_error_rate, _):
@@ -22,7 +23,7 @@ class TopologyGraph:
             self.graph[q1][q2] = error
 
         self.qubit_count = len(self.graph)
-        self.error_matrix = [
+        self.error_matrix: list[list[float]] = [
             [float("inf") for _ in range(self.qubit_count)]
             for _ in range(self.qubit_count)
         ]
@@ -33,30 +34,42 @@ class TopologyGraph:
 
         for start_q in self.graph:
             previous: dict[int, int | None] = {start_q: None}
-            pending = [(0.0, start_q)]
+            distances = {start_q: (0.0, 0)}
+            pending = [(0.0, 0, start_q)]
             self.error_matrix[start_q][start_q] = 0.0
             self.path_matrix[start_q][start_q] = [start_q]
 
             while pending:
-                error, q = heapq.heappop(pending)
-                if error > self.error_matrix[start_q][q]:
+                log_success_loss, hop_count, q = heapq.heappop(pending)
+                if (log_success_loss, hop_count) != distances[q]:
                     continue
 
+                reverse_path = []
+                current_q: int | None = q
+                while current_q is not None:
+                    reverse_path.append(current_q)
+                    current_q = previous[current_q]
+                self.path_matrix[start_q][q] = reverse_path[::-1]
+
                 for new_q in sorted(self.graph[q]):
-                    new_error = error + self.link_error_rate(q, new_q)
-                    if new_error >= self.error_matrix[start_q][new_q]:
+                    link_error = self.link_error_rate(q, new_q)
+                    link_log_loss = (
+                        float("inf")
+                        if link_error == 1.0
+                        else -math.log1p(-link_error)
+                    )
+                    candidate = (log_success_loss + link_log_loss, hop_count + 1)
+                    if new_q in distances and candidate >= distances[new_q]:
                         continue
 
+                    distances[new_q] = candidate
                     previous[new_q] = q
-                    self.error_matrix[start_q][new_q] = new_error
-                    heapq.heappush(pending, (new_error, new_q))
-
-                    reverse_path = []
-                    current_q: int | None = new_q
-                    while current_q is not None:
-                        reverse_path.append(current_q)
-                        current_q = previous[current_q]
-                    self.path_matrix[start_q][new_q] = reverse_path[::-1]
+                    cumulative_error = -math.expm1(-candidate[0])
+                    self.error_matrix[start_q][new_q] = cumulative_error
+                    heapq.heappush(
+                        pending,
+                        (candidate[0], candidate[1], new_q),
+                    )
 
     def link_error_rate(self, source: int, target: int) -> float:
         rates = [
@@ -69,4 +82,7 @@ class TopologyGraph:
         ]
         if not rates:
             raise ValueError(f"No hardware link between qubits {source} and {target}")
-        return sum(rates) / len(rates)
+        rate = sum(rates) / len(rates)
+        if not 0.0 <= rate <= 1.0:
+            raise ValueError(f"Invalid two-qubit gate error rate: {rate}")
+        return rate

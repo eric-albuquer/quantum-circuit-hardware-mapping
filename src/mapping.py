@@ -336,11 +336,13 @@ if __name__ == "__main__":
     from src.topology_graph.loader import load_topology_graph
 
     circuit = load_circuit_graph(
-        "datasets/interaction_order/algorithms/bmw_quark_cardinality/"
-        "bmw_quark_cardinality_3qubits_ordered_interactions.csv"
+        "/Users/ega/Desktop/codigos/python/quantum-circuit-hardware-mapping/datasets/interaction_order/algorithms/qpeinexact/qpeinexact_7qubits_ordered_interactions.csv"
     )
     topology = load_topology_graph(
-        "datasets/topologies/heavy_hex/heavy_hex_19qubits_weighted_edges.csv"
+        "/Users/ega/Desktop/codigos/python/quantum-circuit-hardware-mapping/datasets/topologies/heavy_hex/heavy_hex_57qubits_weighted_edges.csv"
     )
     placement = map(circuit, topology, 1000, 45, route_candidates=1000)
-    print("Routed SWAPs:", route_circuit(circuit, topology, placement))
+    routing_result = route_circuit(circuit, topology, placement)
+    print("Routed SWAPs:", routing_result)
+
+    print("Real error:", estimate_placement_cost(circuit, topology, routing_result.final_mapping))

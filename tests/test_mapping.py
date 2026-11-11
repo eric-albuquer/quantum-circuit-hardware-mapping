@@ -48,8 +48,21 @@ class MappingTests(unittest.TestCase):
 
         self.assertEqual(topology.path_matrix[0][2], [0, 1, 2])
         self.assertEqual(topology.path_matrix[0][1], [0, 1])
-        self.assertAlmostEqual(topology.error_matrix[0][2], 0.1)
+        self.assertAlmostEqual(topology.error_matrix[0][2], 1.0 - 0.95**2)
         self.assertAlmostEqual(topology.error_matrix[0][1], 0.05)
+
+    def test_dijkstra_keeps_paths_with_certain_error_reachable(self):
+        topology = TopologyGraph(
+            [
+                TopologyEdge(0, 1, 1.0, 1.0),
+                TopologyEdge(1, 0, 1.0, 1.0),
+                TopologyEdge(1, 2, 0.0, 1.0),
+                TopologyEdge(2, 1, 0.0, 1.0),
+            ]
+        )
+
+        self.assertEqual(topology.path_matrix[0][2], [0, 1, 2])
+        self.assertEqual(topology.error_matrix[0][2], 1.0)
 
     def test_multi_start_mapping_is_reproducible_and_injective(self):
         circuit = make_circuit(4, [(0, 1), (0, 1), (0, 2), (1, 3)])
