@@ -1,4 +1,4 @@
-from src.mapping.topology_graph.graph import *
+from src.topology_graph.graph import *
 import csv
 
 def load_topology_graph(topologies_path: str):

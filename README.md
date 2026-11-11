@@ -67,12 +67,26 @@ algorithm as the submitted implementation:
    arc costs). An MST is a minimum-cost connected backbone, not a routing
    solution: omitted hardware edges still exist, and routing must not be
    restricted to the tree unless that is a separate experiment.
-5. **Placement and routing:** develop baseline placements (for example,
-   frequency/degree-based greedy matching) and compare them with alternatives.
-   Route each circuit interaction along hardware paths while tracking the
-   evolving logical-to-physical mapping. Optimize a stated objective such as
-   SWAP count first; analyze depth and synthetic error separately rather than
-   mixing incompatible units into one undocumented weight.
+5. **Placement and routing:** `src/mapping.py` provides a degree/frequency
+   baseline, reproducible shuffled multi-starts, and local improvement using
+   logical-qubit swaps and moves onto unused physical qubits. Its placement
+   proxy is the sum of each circuit pair's interaction count times its
+   shortest undirected hardware hop distance. The directed coupling arcs are
+   projected to undirected links for this experiment; direction-dependent
+   gate feasibility and error are not modeled by this proxy.
+
+   The mapper routes the best proxy candidates through the ordered circuit
+   interactions, updates the logical-to-physical placement after each SWAP,
+   and returns the candidate with the fewest routed SWAPs (using proxy cost as
+   a tie-breaker). `route_circuit` exposes the SWAP count, final placement,
+   and an `expected_error_rate`; `estimate_placement_cost` exposes the proxy.
+   The error estimate treats each SWAP as three two-qubit gates and each
+   circuit interaction as one two-qubit gate, using the mean error rate of
+   available directed arcs for an undirected link. It combines independent
+   gate success probabilities and excludes single-qubit errors. This router
+   is an experiment over undirected unit-cost SWAP links, not a
+   direction-aware hardware compiler. Use a fixed `seed` for repeatable runs
+   and compare routed SWAP count, depth, and hardware error separately.
 
 Use and test these implementations on the selected large assignment graph
 where the graph type permits, and on the circuit/hardware graphs where the

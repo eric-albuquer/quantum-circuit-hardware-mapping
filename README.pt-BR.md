@@ -75,13 +75,29 @@ uma biblioteca como implementação entregue:
    de custo mínimo, não uma solução de roteamento: as arestas de hardware
    omitidas continuam existindo, e as rotas não devem ser restringidas à
    árvore a menos que isso seja um experimento separado.
-5. **Posicionamento e roteamento:** desenvolver posicionamentos-base (por
-   exemplo, associação gulosa baseada em frequência/grau) e compará-los com
-   alternativas. Roteirizar as interações do circuito por caminhos no
-   hardware, acompanhando a evolução do mapeamento lógico-físico. Otimizar
-   primeiro um objetivo declarado, como o número de SWAPs; analisar
-   profundidade e erro sintético separadamente, em vez de misturar unidades
-   incompatíveis em um peso sem justificativa.
+5. **Posicionamento e roteamento:** `src/mapping.py` oferece uma base por
+   grau/frequência, múltiplos inícios embaralhados e reproduzíveis e melhoria
+   local por trocas entre qubits lógicos ou movimentos para qubits físicos
+   não usados. A aproximação do posicionamento soma, para cada par do
+   circuito, a quantidade de interações multiplicada pela menor distância em
+   saltos no hardware não dirigido. Os arcos dirigidos de acoplamento são
+   projetados em ligações não dirigidas neste experimento; direção de portas
+   e erro dependente da direção não são modelados por essa aproximação.
+
+   O mapeador roteiriza os melhores candidatos da aproximação na ordem das
+   interações, atualiza o posicionamento lógico-físico após cada SWAP e
+   retorna o candidato com menos SWAPs roteirizados (usando o custo da
+   aproximação para desempate). `route_circuit` retorna a contagem de SWAPs,
+   o posicionamento final e uma `expected_error_rate`; `estimate_placement_cost`
+   retorna a aproximação. A estimativa de erro considera cada SWAP como três
+   portas de dois qubits e cada interação do circuito como uma porta de dois
+   qubits, usando a média das taxas de erro dos arcos dirigidos disponíveis
+   para cada ligação não dirigida. Combina probabilidades de sucesso de
+   portas independentes e exclui erros de portas de um qubit. Esse roteador
+   é um experimento com ligações SWAP não dirigidas e de custo unitário, não
+   um compilador de hardware que considera direções. Use um `seed` fixo para
+   execuções reproduzíveis e compare separadamente a quantidade de SWAPs, a
+   profundidade e o erro do hardware.
 
 Usar e testar essas implementações no grafo grande escolhido quando o tipo
 de grafo permitir e nos grafos de circuito/hardware quando a pergunta fizer
