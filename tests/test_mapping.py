@@ -1,7 +1,13 @@
 import unittest
 
 from src.circuit_graph.graph import CircuitEdge, CircuitGraph
-from src.mapping import estimate_placement_cost, map, route_circuit
+from src.mapping import (
+    _improve_placement,
+    estimate_placement_cost,
+    map,
+    optimal_np_map,
+    route_circuit,
+)
 from src.topology_graph.graph import TopologyEdge, TopologyGraph
 
 
@@ -34,6 +40,37 @@ def make_topology(links: list[tuple[int, int]], qubit_count: int) -> TopologyGra
 
 
 class MappingTests(unittest.TestCase):
+    def test_placement_searches_combine_interaction_errors_as_probabilities(self):
+        circuit = make_circuit(2, [(0, 1), (0, 1)])
+        topology = TopologyGraph(
+            [
+                TopologyEdge(0, 1, 0.1, 0.9),
+                TopologyEdge(1, 0, 0.1, 0.9),
+            ]
+        )
+
+        _, heuristic_cost = _improve_placement(
+            circuit,
+            topology,
+            {0: 0, 1: 1},
+        )
+        optimal_mapping = optimal_np_map(circuit, topology)
+        optimal_error, _ = estimate_placement_cost(
+            circuit,
+            topology,
+            optimal_mapping,
+        )
+
+        self.assertAlmostEqual(heuristic_cost[0], 1.0 - 0.9**2)
+        self.assertAlmostEqual(optimal_error, 1.0 - 0.9**2)
+        estimated_error, estimated_distance = estimate_placement_cost(
+            circuit,
+            topology,
+            {0: 0, 1: 1},
+        )
+        self.assertAlmostEqual(estimated_error, 1.0 - 0.9**2)
+        self.assertEqual(estimated_distance, 2)
+
     def test_topology_precomputes_minimum_error_paths_with_dijkstra(self):
         topology = TopologyGraph(
             [
@@ -75,8 +112,12 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(set(first), set(range(4)))
         self.assertEqual(len(set(first.values())), 4)
         self.assertLessEqual(
-            estimate_placement_cost(circuit, topology, first),
-            estimate_placement_cost(circuit, topology, {0: 0, 1: 4, 2: 1, 3: 3}),
+            estimate_placement_cost(circuit, topology, first)[1],
+            estimate_placement_cost(
+                circuit,
+                topology,
+                {0: 0, 1: 4, 2: 1, 3: 3},
+            )[1],
         )
 
     def test_routing_counts_swaps_and_updates_mapping(self):
