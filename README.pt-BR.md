@@ -75,10 +75,21 @@ uma biblioteca como implementação entregue:
    de custo mínimo, não uma solução de roteamento: as arestas de hardware
    omitidas continuam existindo, e as rotas não devem ser restringidas à
    árvore a menos que isso seja um experimento separado.
-5. **Posicionamento e roteamento:** `src/mapping.py` oferece uma base por
-   grau/frequência, múltiplos inícios embaralhados e reproduzíveis e melhoria
-   local por trocas entre qubits lógicos ou movimentos para qubits físicos
-   não usados. A aproximação do posicionamento soma, para cada par do
+5. **Posicionamento e roteamento:** `src/mapping.py` combina uma base por
+   grau/frequência com inícios guiados pelo par lógico mais frequente e pela
+   localidade do circuito, além de inícios aleatórios independentes e
+   reproduzíveis. Os reinícios são divididos igualmente entre as quatro
+   estratégias (250 de cada com 1.000 reinícios); eventual resto é distribuído
+   na ordem grau, par frequente, localidade e aleatório. Os inícios guiados
+   crescem o mapeamento priorizando interações com qubits já posicionados; a
+   estratégia por par começa em uma ligação física de baixo erro. Cada critério
+   tem sua própria função: `_degree_initial_placement`,
+   `_interaction_pair_initial_placement`, `_locality_initial_placement` e
+   `_random_initial_placement`. Os quatro
+   candidatos-base são preservados sem melhoria local e sempre considerados
+   no roteamento final. Os demais passam por melhoria local com trocas entre
+   qubits lógicos ou movimentos para qubits físicos não usados.
+   A aproximação do posicionamento soma, para cada par do
    circuito, a quantidade de interações multiplicada pela menor distância em
    saltos no hardware não dirigido. Os arcos dirigidos de acoplamento são
    projetados em ligações não dirigidas neste experimento; direção de portas

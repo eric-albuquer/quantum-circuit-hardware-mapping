@@ -67,13 +67,24 @@ algorithm as the submitted implementation:
    arc costs). An MST is a minimum-cost connected backbone, not a routing
    solution: omitted hardware edges still exist, and routing must not be
    restricted to the tree unless that is a separate experiment.
-5. **Placement and routing:** `src/mapping.py` provides a degree/frequency
-   baseline, reproducible shuffled multi-starts, and local improvement using
-   logical-qubit swaps and moves onto unused physical qubits. Its placement
-   proxy is the sum of each circuit pair's interaction count times its
-   shortest undirected hardware hop distance. The directed coupling arcs are
-   projected to undirected links for this experiment; direction-dependent
-   gate feasibility and error are not modeled by this proxy.
+5. **Placement and routing:** `src/mapping.py` combines a degree/frequency
+   baseline with starts guided by the most frequent logical interaction pair
+   and circuit locality, as well as reproducible independent random starts.
+   Restarts are split evenly across the four strategies (250 each with 1,000
+   restarts); any remainder goes in degree, frequent-pair, locality, and
+   random order. Guided starts grow the placement by prioritizing interactions
+   with already placed qubits; the pair-based start begins on a low-error
+   physical link. Each criterion has its own function:
+   `_degree_initial_placement`, `_interaction_pair_initial_placement`,
+   `_locality_initial_placement`, and `_random_initial_placement`. The four
+   baseline candidates are preserved without local
+   improvement and always considered for final routing. Other starts receive
+   local improvement using logical-qubit swaps and moves onto unused physical
+   qubits. Its placement proxy is the sum of each circuit pair's interaction
+   count times its shortest undirected hardware hop distance. The directed
+   coupling arcs are projected to undirected links for this experiment;
+   direction-dependent gate feasibility and error are not modeled by this
+   proxy.
 
    The mapper routes the best proxy candidates through the ordered circuit
    interactions, updates the logical-to-physical placement after each SWAP,
