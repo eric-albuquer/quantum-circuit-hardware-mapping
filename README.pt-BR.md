@@ -98,11 +98,16 @@ uma biblioteca como implementação entregue:
    posicionamento na ordem das interações, atualiza o posicionamento
    lógico-físico após cada SWAP e seleciona o candidato com menor erro
    roteirizado, usando quantidade de SWAPs e custo da aproximação para desempate.
-   No Windows, chamadas feitas por scripts devem estar protegidas por
-   `if __name__ == "__main__":` ao usar o modo multiprocessing padrão.
+   `optimal_map` distribui os prefixos da busca exaustiva entre processos;
+   use `max_workers` para limitar os processos ou `max_workers=1` para
+   executar sequencialmente. No Windows, chamadas feitas por scripts devem
+   estar protegidas por `if __name__ == "__main__":` ao usar o modo
+   multiprocessing padrão.
    `route_circuit` retorna a contagem de SWAPs, o posicionamento final e uma
    `expected_error_rate`. `optimal_map` compara exaustivamente os
-   posicionamentos por esse erro (e, em empate, pela quantidade de SWAPs).
+   posicionamentos por esse erro (e, em empate, pela quantidade de SWAPs e
+   pelo posicionamento físico), mantendo o mesmo resultado com ou sem
+   paralelismo.
    A busca exaustiva pode ser significativamente mais lenta,
    pois roteiriza cada posicionamento. A estimativa de erro considera cada SWAP como três
    portas de dois qubits e cada interação do circuito como uma porta de dois

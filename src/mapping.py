@@ -48,6 +48,18 @@ def _improve_placement_worker(
     return _improve_placement(_WORKER_CIRCUIT, _WORKER_TOPOLOGY, mapping)
 
 
+def _optimal_map_worker(
+    first_physical: int,
+) -> tuple[float, int, tuple[int, ...]] | None:
+    if _WORKER_CIRCUIT is None or _WORKER_TOPOLOGY is None:
+        raise RuntimeError("Placement worker was not initialized")
+    return _optimal_map_for_prefix(
+        _WORKER_CIRCUIT,
+        _WORKER_TOPOLOGY,
+        (first_physical,),
+    )
+
+
 def _validate_mapping(
     circuit: CircuitGraph,
     topology: TopologyGraph,
@@ -471,16 +483,19 @@ def _improve_placement(
     return mapping, current_cost
 
 
-def optimal_map(circuit: CircuitGraph, topology: TopologyGraph):
-    """Return the placement with the lowest exact routed error by exhaustive search."""
-    current_physic = []
+def _optimal_map_for_prefix(
+    circuit: CircuitGraph,
+    topology: TopologyGraph,
+    prefix: tuple[int, ...],
+) -> tuple[float, int, tuple[int, ...]] | None:
+    current_physic = list(prefix)
     best_score: tuple[float, int, tuple[int, ...]] | None = None
-    best_map: tuple[int, ...] | None = None
-
     used_physic = [False] * topology.qubit_count
+    for physical in prefix:
+        used_physic[physical] = True
 
     def dfs_physic():
-        nonlocal best_score, best_map
+        nonlocal best_score
         if len(current_physic) == circuit.qubit_count:
             mapping = dict(enumerate(current_physic))
             routing_result = route_circuit(circuit, topology, mapping)
@@ -491,7 +506,6 @@ def optimal_map(circuit: CircuitGraph, topology: TopologyGraph):
             )
             if best_score is None or score < best_score:
                 best_score = score
-                best_map = score[2]
             return
         for i in range(topology.qubit_count):
             if used_physic[i]:
@@ -503,11 +517,47 @@ def optimal_map(circuit: CircuitGraph, topology: TopologyGraph):
             current_physic.pop()
 
     dfs_physic()
-    if best_map is None:
-        raise ValueError("No valid placement exists for this circuit and topology")
-    mapped = {l: p for l, p in enumerate(best_map)}
+    return best_score
 
-    return mapped
+
+def optimal_map(
+    circuit: CircuitGraph,
+    topology: TopologyGraph,
+    max_workers: int | None = None,
+) -> dict[int, int]:
+    """Return the exact best placement, parallelizing the exhaustive search."""
+    if max_workers is not None and max_workers < 1:
+        raise ValueError("max_workers must be at least 1")
+
+    prefixes = list(range(topology.qubit_count))
+    worker_count = min(
+        max_workers if max_workers is not None else (os.cpu_count() or 1),
+        len(prefixes),
+    )
+    if worker_count > 1:
+        with ProcessPoolExecutor(
+            max_workers=worker_count,
+            initializer=_initialize_placement_worker,
+            initargs=(circuit, topology),
+        ) as executor:
+            scores = executor.map(_optimal_map_worker, prefixes)
+            best_score = min(
+                (score for score in scores if score is not None),
+                default=None,
+            )
+    else:
+        scores = (
+            _optimal_map_for_prefix(circuit, topology, (prefix,))
+            for prefix in prefixes
+        )
+        best_score = min(
+            (score for score in scores if score is not None),
+            default=None,
+        )
+
+    if best_score is None:
+        raise ValueError("No valid placement exists for this circuit and topology")
+    return {logical: physical for logical, physical in enumerate(best_score[2])}
 
 
 def heuristic_map(
@@ -628,10 +678,10 @@ if __name__ == "__main__":
     from src.topology_graph.loader import load_topology_graph
 
     circuit = load_circuit_graph(
-        r"E:\Cesar\Python\Grafos\projeto-parte2\datasets\interaction_order\algorithms\draper_qft_adder\draper_qft_adder_20qubits_ordered_interactions.csv"
+        r"E:\Cesar\Python\Grafos\projeto-parte2\datasets\interaction_order\algorithms\bmw_quark_copula\bmw_quark_copula_6qubits_ordered_interactions.csv"
     )
     topology = load_topology_graph(
-        r"E:\Cesar\Python\Grafos\projeto-parte2\datasets\topologies\grid\grid_5x5_25qubits_weighted_edges.csv"
+        r"E:\Cesar\Python\Grafos\projeto-parte2\datasets\topologies\full\full_14qubits_weighted_edges.csv"
     )
 
     iteractions = math.factorial(topology.qubit_count) // math.factorial(
@@ -640,7 +690,7 @@ if __name__ == "__main__":
     print(f"Total solutions: {iteractions}")
 
     start_time = time.time()
-    if iteractions < 1_000_000:
+    if iteractions < 100_000_000:
         print("CALCULATING OPTIMAL SOLUTION")
         placement = optimal_map(circuit, topology)
     else:

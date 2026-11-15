@@ -89,11 +89,14 @@ algorithm as the submitted implementation:
    ordered circuit interactions, updates the logical-to-physical placement
    after each SWAP, and selects the candidate with the lowest routed error
    rate, using SWAP count and proxy cost as tie-breakers.
-   On Windows, calls from scripts should be protected by
+   `optimal_map` distributes exhaustive-search prefixes across processes;
+   use `max_workers` to limit the process count or `max_workers=1` to run
+   sequentially. On Windows, calls from scripts should be protected by
    `if __name__ == "__main__":` when using the default multiprocessing mode.
    `route_circuit` exposes the SWAP count, final placement, and an
    `expected_error_rate`. `optimal_map` exhaustively compares placements using
-   that routed error (then SWAP count).
+   that routed error (then SWAP count and physical placement), with the same
+   result whether or not the search is parallelized.
    The error estimate treats each SWAP as three two-qubit gates and each
    circuit interaction as one two-qubit gate, using the mean error rate of
    available directed arcs for an undirected link. It combines independent

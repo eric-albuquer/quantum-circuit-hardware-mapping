@@ -256,6 +256,22 @@ class MappingTests(unittest.TestCase):
             best_score,
         )
 
+    def test_parallel_optimal_map_matches_sequential_result(self):
+        circuit = make_circuit(4, [(0, 1), (0, 1), (0, 2), (1, 3)])
+        topology = make_topology([(0, 1), (1, 2), (2, 3), (3, 4)], 5)
+
+        sequential = optimal_map(circuit, topology, max_workers=1)
+        parallel = optimal_map(circuit, topology, max_workers=2)
+
+        self.assertEqual(parallel, sequential)
+
+    def test_optimal_map_rejects_nonpositive_worker_count(self):
+        circuit = make_circuit(2, [(0, 1)])
+        topology = make_topology([(0, 1)], 2)
+
+        with self.assertRaisesRegex(ValueError, "max_workers must be at least 1"):
+            optimal_map(circuit, topology, max_workers=0)
+
     def test_interaction_pair_start_places_most_frequent_pair_adjacent(self):
         circuit = make_circuit(4, [(0, 1), (0, 1), (0, 1), (0, 2), (2, 3)])
         topology = make_topology([(0, 1), (1, 2), (2, 3), (3, 4)], 5)
