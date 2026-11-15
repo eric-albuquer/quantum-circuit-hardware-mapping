@@ -8,7 +8,9 @@ from src.mapping import (
     _interaction_pair_initial_placement,
     _improve_placement,
     _initial_placement_candidates,
+    count_possible_mappings,
     heuristic_map,
+    map_and_route,
     optimal_map,
     route_circuit,
 )
@@ -67,6 +69,56 @@ def placement_proxy_cost(
 
 
 class MappingTests(unittest.TestCase):
+    def test_count_possible_mappings_uses_injective_placements(self):
+        circuit = make_circuit(2, [(0, 1)])
+        topology = make_topology([(0, 1), (1, 2)], 3)
+
+        self.assertEqual(count_possible_mappings(circuit, topology), 6)
+
+    @patch("src.mapping.heuristic_map")
+    @patch("src.mapping.optimal_map")
+    def test_main_mapping_flow_selects_exact_search_below_limit(
+        self,
+        optimal_map_mock,
+        heuristic_map_mock,
+    ):
+        circuit = make_circuit(2, [(0, 1)])
+        topology = make_topology([(0, 1), (1, 2)], 3)
+        optimal_map_mock.return_value = {0: 0, 1: 1}
+
+        result = map_and_route(circuit, topology, exact_search_limit=7)
+
+        self.assertEqual(result.solution_count, 6)
+        self.assertEqual(result.algorithm, "exact")
+        self.assertEqual(result.routing.swap_count, 0)
+        optimal_map_mock.assert_called_once()
+        heuristic_map_mock.assert_not_called()
+
+    @patch("src.mapping.heuristic_map")
+    @patch("src.mapping.optimal_map")
+    def test_main_mapping_flow_selects_heuristic_at_limit(
+        self,
+        optimal_map_mock,
+        heuristic_map_mock,
+    ):
+        circuit = make_circuit(2, [(0, 1)])
+        topology = make_topology([(0, 1), (1, 2)], 3)
+        heuristic_map_mock.return_value = {0: 0, 1: 1}
+
+        result = map_and_route(circuit, topology, exact_search_limit=6)
+
+        self.assertEqual(result.algorithm, "heuristic")
+        self.assertEqual(result.routing.swap_count, 0)
+        heuristic_map_mock.assert_called_once()
+        optimal_map_mock.assert_not_called()
+
+    def test_count_possible_mappings_rejects_too_few_physical_qubits(self):
+        circuit = make_circuit(2, [(0, 1)])
+        topology = make_topology([], 1)
+
+        with self.assertRaises(ValueError):
+            count_possible_mappings(circuit, topology)
+
     def test_placement_searches_combine_interaction_errors_as_probabilities(self):
         circuit = make_circuit(2, [(0, 1), (0, 1)])
         topology = TopologyGraph(
@@ -303,17 +355,18 @@ class MappingTests(unittest.TestCase):
 
         self.assertEqual(first, second)
         self.assertEqual(len(first), 1000)
-        self.assertEqual(sum(is_initial for _, is_initial, _ in first), 2)
+        self.assertEqual(sum(is_initial for _, is_initial, _ in first), 3)
         strategy_counts = {
-            strategy: 0 for strategy in ("degree", "interaction_pair")
+            strategy: 0 for strategy in ("random", "degree", "interaction_pair")
         }
         for strategy, _, _ in first:
             strategy_counts[strategy] += 1
         self.assertEqual(
             strategy_counts,
             {
-                "degree": 500,
-                "interaction_pair": 500,
+                "random": 334,
+                "degree": 333,
+                "interaction_pair": 333,
             },
         )
         for _, _, candidate in first:
@@ -335,17 +388,34 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(
             [strategy for strategy, _, _ in candidates],
             [
+                "random",
+                "random",
+                "random",
                 "degree",
                 "degree",
                 "degree",
-                "degree",
-                "degree",
-                "interaction_pair",
                 "interaction_pair",
                 "interaction_pair",
                 "interaction_pair",
             ],
         )
+
+    def test_single_candidate_budget_uses_random_placement_strategy(self):
+        circuit = make_circuit(2, [(0, 1)])
+        topology = make_topology([(0, 1), (1, 2)], 3)
+
+        candidates = _initial_placement_candidates(
+            circuit,
+            topology,
+            1,
+            random.Random(7),
+        )
+
+        self.assertEqual(len(candidates), 1)
+        self.assertEqual(candidates[0][0], "random")
+        self.assertTrue(candidates[0][1])
+        self.assertEqual(set(candidates[0][2]), {0, 1})
+        self.assertEqual(len(set(candidates[0][2].values())), 2)
 
     def test_unperturbed_strategy_starts_are_preserved_for_routing(self):
         circuit = make_circuit(4, [(0, 1), (0, 1), (0, 2), (1, 3)])

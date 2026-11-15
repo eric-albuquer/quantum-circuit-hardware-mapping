@@ -1,7 +1,7 @@
 # Algorithm interaction dataset
 
-For the complete project overview in both languages, see the
-[English README](../README.md) and [Portuguese README](../README.pt-BR.md).
+For the complete project overview, see the
+[project README](../README.md).
 
 Generate a pairwise interaction dataset from the QASM circuits in
 `datasets/algorithms/`:

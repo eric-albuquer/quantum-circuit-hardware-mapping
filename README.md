@@ -1,7 +1,5 @@
 # Quantum circuit and topology datasets
 
-**Documentation:** [Português (Brasil)](README.pt-BR.md)
-
 This repository prepares data for a graph-algorithms project with two related
 goals: meet the algorithmic requirements on a large directed, weighted graph,
 and study how quantum-circuit interactions relate to hardware connectivity.
@@ -67,43 +65,465 @@ algorithm as the submitted implementation:
    arc costs). An MST is a minimum-cost connected backbone, not a routing
    solution: omitted hardware edges still exist, and routing must not be
    restricted to the tree unless that is a separate experiment.
-5. **Placement and routing:** `src/mapping.py` splits initial placements
-   evenly between degree-based and most-frequent-interaction-pair starts,
-   with a fixed seed for reproducibility. The unperturbed start from each
-   strategy is preserved without local improvement and always considered for
-   final routing. Other starts receive local improvement using logical-qubit
-   swaps and moves onto unused physical qubits. Hill climbing runs across
-   worker processes by default; pass `max_workers=1` to disable multiprocessing.
-   `_improve_placement` evaluates only the cost deltas of interactions
-   incident to the qubits affected by each move, rather than rescoring the
-   entire circuit. Its placement proxy is the sum of each circuit pair's
-   interaction count times its shortest undirected hardware hop distance.
-   The directed coupling arcs are projected to undirected links for this experiment;
-   direction-dependent gate feasibility and error are not modeled by this
-   proxy.
+5. **Placement and routing:** the detailed model, equations, precomputed
+   structures, search strategies, physical assumptions, limitations, and
+   command-line usage are documented in the
+   [placement and routing guide](#placement-and-routing-model).
 
-   `heuristic_map` accepts `initial_candidates` (the total number of generated
-   starts) and `max_workers` to control hill-climbing parallelism. It routes
-   every distinct placement produced by hill climbing, in addition to the
-   preserved unperturbed starts. The mapper routes each placement through the
-   ordered circuit interactions, updates the logical-to-physical placement
-   after each SWAP, and selects the candidate with the lowest routed error
-   rate, using SWAP count and proxy cost as tie-breakers.
-   `optimal_map` distributes exhaustive-search prefixes across processes;
-   use `max_workers` to limit the process count or `max_workers=1` to run
-   sequentially. On Windows, calls from scripts should be protected by
-   `if __name__ == "__main__":` when using the default multiprocessing mode.
-   `route_circuit` exposes the SWAP count, final placement, and an
-   `expected_error_rate`. `optimal_map` exhaustively compares placements using
-   that routed error (then SWAP count and physical placement), with the same
-   result whether or not the search is parallelized.
-   The error estimate treats each SWAP as three two-qubit gates and each
-   circuit interaction as one two-qubit gate, using the mean error rate of
-   available directed arcs for an undirected link. It combines independent
-   gate success probabilities and excludes single-qubit errors. This router
-   is an experiment over undirected unit-cost SWAP links, not a
-   direction-aware hardware compiler. Use a fixed `seed` for repeatable runs
-   and compare routed SWAP count, depth, and hardware error separately.
+### Placement and routing model
+
+The implementation is in `src/mapping.py`; the graph preprocessing is in
+`src/circuit_graph/graph.py` and `src/topology_graph/graph.py`. This section
+describes the behavior of the current code, including its approximations.
+
+#### Inputs and precomputed data
+
+The mapper consumes an ordered CSV of two-qubit circuit operations and a
+weighted hardware-edge CSV:
+
+- **Circuit input:** one row per two-qubit operation, including repeated
+  operand pairs. Operand order, gate name, and operation index are retained.
+  Custom multi-qubit instructions are expanded into their defined two-qubit
+  operations while generating the ordered CSV. Single-qubit instructions,
+  measurements, and barriers are not part of this routing input.
+- **Hardware input:** directed coupling arcs with a synthetic
+  `gate_error_rate` on each arc. The topology used by this experiment is
+  connected, and qubit indices are expected to be contiguous from zero because
+  the graph implementation uses those indices directly in square matrices.
+
+`CircuitGraph` builds several structures when the CSV is loaded:
+
+1. `fpga` stores the complete ordered operation list used by the router.
+2. `iteraction_matrix` (spelling retained in the code) is a symmetric
+   `k × k` matrix. Its entry `C[i][j]` is the number of two-qubit operations
+   between logical qubits `i` and `j`; for valid operations on distinct
+   operands, the diagonal is zero.
+3. `dependency_graph` records, for each operation, its immediately preceding
+   operation on either operand. It captures per-qubit ordering constraints,
+   but the current router consumes `fpga` directly rather than scheduling from
+   this dependency graph.
+
+`TopologyGraph` first stores the input arcs in an adjacency dictionary. For
+each ordered pair of physical qubits it then precomputes:
+
+- `path_matrix[a][b]`: a path selected to minimize cumulative link-error risk,
+  with hop count as a tie-breaker. It is not necessarily a minimum-hop path.
+- `error_matrix[a][b]`: the cumulative error estimate along that selected
+  path, not merely the error of the direct edge. Unreachable pairs retain an
+  empty path and infinite error.
+
+For a physical pair `{a,b}`, the undirected link error used by this experiment
+is the arithmetic mean of the available directed arc error rates:
+
+$$
+p_{ab} =
+\frac{1}{|\mathcal{A}_{ab}|}
+\sum_{(u,v)\in\mathcal{A}_{ab}} p_{u\to v},
+\qquad
+\mathcal{A}_{ab} = \{(a,b),(b,a)\}\cap E.
+$$
+
+Here, \(E\) is the set of stored directed hardware arcs and
+\(\mathcal{A}_{ab}\) contains whichever of the two directions are present.
+Thus, if both directions exist, their error rates are averaged; if only one
+exists, that rate is used.
+
+If neither direction exists, there is no usable link. The all-pairs search
+follows the stored directed adjacency arcs, while the error rate of each
+traversed pair is averaged across the available reciprocal calibrations.
+SWAPs and circuit-gate feasibility are otherwise treated as direction-agnostic.
+Generated topologies generally contain both arcs for each physical connection;
+with one-way input data, path reachability can remain asymmetric.
+
+The all-pairs path preprocessing uses Dijkstra's algorithm. For a link error
+\(p_e<1\), the edge weight is transformed to additive negative log-success:
+
+$$
+q(p_e)=-\ln(1-p_e), \qquad
+Q(\pi)=\sum_{e\in\pi}q(p_e),
+$$
+$$
+P_{\mathrm{success}}(\pi)
+=\prod_{e\in\pi}(1-p_e)
+=\exp\!\left(-Q(\pi)\right), \qquad
+E(\pi)=1-P_{\mathrm{success}}(\pi).
+$$
+
+Minimizing \(Q(\pi)\) is equivalent to maximizing the product of link success
+probabilities, or minimizing the modeled path error \(E(\pi)\). The number of
+edges is the secondary ordering criterion; neighbors are visited in sorted
+index order for deterministic tie handling. A link with \(p_e=1\) has infinite
+negative-log cost. The precomputation runs once when a `TopologyGraph` is
+constructed, before the mapping search, and is reused for every placement and
+route. Its all-source Dijkstra work is approximately
+\(O(V(V+E)\log V)\) with a binary heap; the two \(V\times V\) matrices use
+\(O(V^2)\) entries, while storing every full path can require up to \(O(V^3)\)
+vertex entries in the worst case.
+
+#### Floyd–Warshall and the all-pairs path matrices
+
+Floyd–Warshall is a dynamic-programming algorithm for all-pairs shortest paths.
+It maintains a distance matrix and progressively allows each vertex as an
+intermediate point. If `D^(r)[i][j]` is the minimum cost from `i` to `j` using
+only the first `r` vertices as intermediates, its recurrence is:
+
+$$
+D^{(r)}_{ij} =
+\min\!\left(
+    D^{(r-1)}_{ij},
+    D^{(r-1)}_{ir}+D^{(r-1)}_{rj}
+\right).
+$$
+
+For this hardware cost model, the matrix can be initialized with the
+negative-log link costs \(q(p)=-\ln(1-p)\) rather than raw error probabilities.
+The recurrence then minimizes cumulative risk because path costs add in
+negative-log space. A companion next-hop (or predecessor) matrix is needed to
+reconstruct the actual physical-qubit sequence; a distance matrix alone gives
+only the optimal cost. A tuple `(risk_cost, hop_count)` can be compared
+lexicographically to preserve the current tie-break rule for equal-risk paths.
+The standard algorithm takes \(O(V^3)\) time and \(O(V^2)\) space.
+
+The current implementation does **not** run Floyd–Warshall. It obtains the
+same all-pairs kind of result by running Dijkstra once per source, since all
+transformed edge costs are nonnegative. `path_matrix[a][b]` stores the
+reconstructed vertex sequence and `error_matrix[a][b]` stores the cumulative
+error for that path; these are not a Floyd–Warshall distance/next-hop matrix.
+This distinction matters when describing the implementation and its runtime:
+the current preprocessing is approximately
+\(O(V(V+E)\log V)\), whereas Floyd–Warshall would take \(O(V^3)\) regardless
+of sparsity. Both approaches can be used to compute all-pairs paths, but
+switching algorithms would be a separate implementation change.
+
+The circuit matrix and operation dependency data are also computed once when
+the circuit CSV is loaded. They are reused by the placement strategies; no
+per-candidate reconstruction of these graph structures is required.
+
+#### Number of possible placements
+
+Let `k` be the number of logical circuit qubits and `n` the number of physical
+hardware qubits. A placement must assign every logical qubit to a distinct
+physical qubit, but does not need to use every physical qubit. Therefore the
+number of injective mappings is the falling factorial:
+
+$$
+|\mathcal{M}|=P(n,k)
+=n(n-1)\cdots(n-k+1)
+=\frac{n!}{(n-k)!}.
+$$
+
+For example, mapping three logical qubits onto four physical qubits has
+\(4\cdot3\cdot2=24\) possible initial placements. The CLI prints this integer in
+scientific notation (for example, `2.400e+01`). If `n < k`, no placement
+exists and the mapping flow raises an error.
+
+#### Mathematical placement objective
+
+Let \(\mathcal{M}\) be the set of all injective placements, \(m(i)\) the
+physical qubit assigned to logical qubit \(i\), and \(\mathcal{R}(m)\) the
+routed gate sequence produced by the current ordered shortest-risk-path
+policy for initial placement \(m\). If \(p_g\) is the modeled error rate of
+routed two-qubit gate \(g\), define:
+
+$$
+E_{\mathrm{route}}(m)
+=1-\prod_{g\in\mathcal{R}(m)}(1-p_g), \qquad
+S_{\mathrm{route}}(m)
+=\text{number of inserted SWAP gates in }\mathcal{R}(m).
+$$
+
+The exact placement search solves this lexicographic minimization:
+
+$$
+m^\star =
+\underset{m\in\mathcal{M}}{\operatorname{arg\,min}_{\mathrm{lex}}}
+\left(
+E_{\mathrm{route}}(m),
+S_{\mathrm{route}}(m),
+m(0),m(1),\ldots,m(k-1)
+\right).
+$$
+
+The physical-index tuple is a deterministic final tie-breaker. This objective
+minimizes the modeled routed error first and minimizes SWAP count only among
+placements with the same routed error. It does not minimize SWAP count as the
+primary objective.
+
+The heuristic does not search the full set `M`. It locally minimizes a
+placement proxy computed from the symmetric circuit interaction counts
+\(C_{ij}\) and the precomputed risk-optimal path between the currently assigned
+physical qubits. Let \(e_{ab}\) be the cumulative path error and \(d_{ab}\)
+its hop count. The proxy objective is:
+
+$$
+E_{\mathrm{proxy}}(m)
+=1-\prod_{0\le i<j<k}
+\left(1-e_{m(i),m(j)}\right)^{C_{ij}}, \qquad
+H_{\mathrm{proxy}}(m)
+=\sum_{0\le i<j<k} C_{ij}\,d_{m(i),m(j)}.
+$$
+
+The minimization is lexicographic: reduce proxy error first, then weighted
+path length. Equivalently, when all `e[a][b] < 1`, minimizing proxy error is
+the same as minimizing the additive negative-log objective:
+
+$$
+L_{\mathrm{proxy}}(m)
+=-\sum_{0\le i<j<k}C_{ij}
+\ln\!\left(1-e_{m(i),m(j)}\right), \qquad
+E_{\mathrm{proxy}}(m)
+=1-\exp\!\left(-L_{\mathrm{proxy}}(m)\right).
+$$
+
+The implementation uses this log form for numerical stability and handles
+certain-error (\(e_{ab}=1\)) pairs separately. For any one start, it repeatedly
+applies the single best improving logical swap or move to an unused physical
+qubit until no such move decreases
+\((E_{\mathrm{proxy}},H_{\mathrm{proxy}})\). This is a local
+minimum, not a proof of global optimality. The heuristic routes the distinct
+finalists and selects among them using `(E_route, S_route, E_proxy, H_proxy,
+physical-index tuple)`.
+
+#### Ordered routing and the physical error model
+
+`route_circuit(circuit, topology, mapping)` processes each operation in
+`fpga` order, because a SWAP changes where later logical operands reside. For
+an operation whose current physical operands are the endpoints of the
+precomputed path
+`[v0, v1, ..., v(d)]`, the router inserts `d - 1` SWAPs along the first
+operand's path prefix (`v0-v1` through `v(d-2)-v(d-1)`). The operands are then
+adjacent on the final link `v(d-1)-v(d)`, where the circuit operation is
+applied. If the operands were already adjacent, no SWAP is needed. A SWAP
+exchanges the logical occupants of its two physical endpoints; the
+logical-to-physical mapping is updated before processing the next operation.
+An unused physical qubit can receive a logical state during this process.
+
+The error calculation assumes independent two-qubit gate failures and uses
+the same link rate \(p\) for every two-qubit gate executed on that link. Each
+inserted SWAP is modeled as three two-qubit gates, so its success probability
+is \((1-p)^3\); each routed circuit interaction is modeled as one two-qubit
+gate with success probability \((1-p)\). If the routed sequence contains
+gates with rates \(p_1,\ldots,p_r\), the reported value is:
+
+$$
+P_{\mathrm{success}}=\prod_{g=1}^{r}(1-p_g),
+\qquad
+E_{\mathrm{route}}=1-P_{\mathrm{success}}.
+$$
+
+The product is accumulated as execution proceeds. Here, “expected error rate”
+is a probability-style proxy under the stated independent-gate model, not an
+empirically calibrated prediction of a processor's output quality. The
+synthetic dataset's two-qubit gate rates are sampled from a clipped log-normal
+distribution (0.15% median, 0.5 log-space sigma, clipped to 0.02%–1%).
+`gate_fidelity` is stored as `1 - gate_error_rate`.
+
+The model does **not** include single-qubit gate error, readout error,
+decoherence/T1 or T2, gate durations, crosstalk, correlated errors, calibration
+drift, direction-specific gate feasibility, or the physical decomposition
+overhead for correcting gate direction. In particular, treating every SWAP
+as exactly three equally noisy two-qubit gates is a simplifying assumption;
+real hardware may require direction-correction gates or have different error
+rates for each native operation. Operand order and gate names are preserved in
+the input, but the current router does not use them to select direction-aware
+implementations or gate-specific error rates.
+
+#### Exact placement search
+
+`optimal_map` enumerates all `P(n,k)` injective placements using depth-first
+search. Each complete placement is passed through the ordered router and
+scored lexicographically by:
+
+1. routed `expected_error_rate`,
+2. routed SWAP count,
+3. the tuple of physical indices assigned to logical qubits in index order.
+
+The last criterion makes ties deterministic. The search can partition work by
+the first logical qubit's physical assignment and run these independent
+prefixes in a `ProcessPoolExecutor`; `max_workers=1` runs sequentially. This
+is exhaustive over **initial placements**, not over every possible sequence
+of routing decisions: each placement is routed by the single path/SWAP policy
+described above. Its work grows at least proportionally to `P(n,k)` times the
+cost of routing one circuit, so exhaustive search quickly becomes impractical
+as the number of available physical qubits grows.
+
+#### Heuristic placement search
+
+`heuristic_map` uses three starting strategies:
+
+1. **Random start.** A placement is sampled uniformly from the injective
+   mappings by drawing `k` distinct physical qubits without replacement and
+   assigning them to logical qubits in index order. This independently
+   randomized placement is distinct from perturbing a deterministic start.
+2. **Degree-based start.** Logical qubits are ordered by the number of
+   distinct interaction partners, then total interaction count, then logical
+   index. Physical qubits are ordered by adjacency count (degree), lower
+   accumulated path error to all physical qubits, lower average path length,
+   then physical index. The ordered lists are paired.
+3. **Most-frequent-pair start.** The most frequently interacting logical pair
+   is selected, with total endpoint interaction counts and indices breaking
+   ties. It is placed on the physical link with the lowest undirected link
+   error, with endpoint degree and indices breaking ties. Remaining logical
+   qubits are paired in descending interaction-degree/weight order with
+   physical qubits ordered by degree, aggregate path error, and index.
+
+The requested `initial_candidates` are divided as evenly as possible between
+the three strategies; the random strategy receives any remainder. The first
+random placement and the unperturbed start for each deterministic strategy
+assigned at least one candidate are retained as final candidates. Additional
+degree- and interaction-pair-based starts are created by seeded random
+perturbations: a logical qubit is selected and assigned to a random physical
+qubit; if that physical qubit is occupied, the two logical assignments are
+exchanged. Repeating this a random number of times produces each perturbed
+start. A fixed `seed` makes both the independent random placements and
+perturbations reproducible. Therefore, even when `initial_candidates` is
+smaller than three, at least one random initial placement is generated.
+
+Every start is locally improved by greedy hill climbing. At each iteration,
+the algorithm considers:
+
+- swapping the physical assignments of any two logical qubits; and
+- moving one logical qubit to any currently unused physical qubit.
+
+This neighborhood is **inspired by the 2-opt idea of making a two-element
+exchange to improve a solution**, but it is not the classical 2-opt algorithm
+for a traveling-salesperson tour, which removes two tour edges and reconnects
+or reverses a tour segment. Here, a placement is an assignment, so the
+two-element exchange swaps the physical destinations of two logical qubits.
+The additional move to an unused physical qubit is specific to the
+rectangular \(k\)-logical-to-\(n\)-physical placement problem.
+
+Formally, for a current injective placement \(m\), the swap neighborhood is
+
+$$
+\mathcal{N}_{\mathrm{swap}}(m)
+=\{m^{i\leftrightarrow j}:0\le i<j<k\},\qquad
+m^{i\leftrightarrow j}(i)=m(j),\quad
+m^{i\leftrightarrow j}(j)=m(i),
+$$
+
+so \(\lvert\mathcal{N}_{\mathrm{swap}}(m)\rvert=\binom{k}{2}\). The
+unused-site move neighborhood is
+
+$$
+\mathcal{N}_{\mathrm{move}}(m)
+=\{m^{i\to p}:0\le i<k,\ p\in\mathcal{P}\setminus m(\mathcal{L})\},
+\qquad
+m^{i\to p}(i)=p.
+$$
+
+There are \(k(n-k)\) such moves, since \(n-k\) physical qubits are unoccupied.
+Thus, each hill-climbing iteration examines
+\(\binom{k}{2}+k(n-k)\) neighboring placements.
+Here, \(\mathcal{L}\) and \(\mathcal{P}\) are the logical- and physical-qubit
+sets. All assignments not shown in these definitions remain unchanged. The
+algorithm evaluates the full neighborhood, chooses its best strictly
+improving member, and repeats:
+
+$$
+m_{t+1}
+=\underset{
+ m'\in\{m_t\}\cup\mathcal{N}_{\mathrm{swap}}(m_t)\cup
+ \mathcal{N}_{\mathrm{move}}(m_t)
+}{\operatorname{arg\,min}_{\mathrm{lex}}}
+\left(E_{\mathrm{proxy}}(m'),H_{\mathrm{proxy}}(m')\right).
+$$
+
+If the minimizer is \(m_t\), the search stops; ties with the current placement
+are resolved in favor of stopping, matching the implementation's
+strict-improvement check. Otherwise, that best strictly-improving candidate
+becomes the next placement. This is **best-improvement hill climbing** over a
+2-opt-like swap neighborhood, not an exhaustive search over
+all placements and not a guarantee of a global optimum. Its result depends
+on the starting candidate, which is why the implementation uses random,
+degree-based, and most-frequent-pair starts.
+
+Although the number of candidate moves is quadratic in the logical-qubit
+count plus the logical-to-unused-physical move count, the implementation
+updates the proxy using only interaction pairs incident to the moved logical
+qubits. This avoids recomputing the full interaction objective for every
+neighbor. The placement space is finite and only strictly improving moves
+are accepted, so each hill-climbing run terminates at a neighborhood-local
+minimum.
+
+For a logical pair \((i,j)\) with \(C_{ij}\) interactions mapped to physical
+pair \((a,b)\), let \(e_{ab}\) be `error_matrix[a][b]` and
+\(d_{ab}=\operatorname{len}(\texttt{path\_matrix}[a][b])-1\). The proxy is:
+
+$$
+E_{\mathrm{proxy}}(m)
+=1-\prod_{0\le i<j<k}
+\left(1-e_{m(i),m(j)}\right)^{C_{ij}},
+\qquad
+H_{\mathrm{proxy}}(m)
+=\sum_{0\le i<j<k}C_{ij}\,d_{m(i),m(j)}.
+$$
+
+If any interacting pair has path error \(1\), its proxy error is \(1\). The
+implementation uses sums of logarithms for numerical stability and tracks
+certain-error pairs separately. For each trial move it recomputes only
+interactions incident to the moved logical qubits, rather than rescoring the
+whole interaction matrix. The local search terminates at a local minimum with
+respect to the two neighborhoods above; other placements may still have lower
+cost.
+
+The proxy treats every interaction between a given logical pair as if it used
+the same precomputed path/error and does not model the dynamic SWAPs that may
+be inserted when that pair is actually routed. To choose the final heuristic
+answer, the implementation deduplicates locally improved placements while
+retaining the strategy starts, routes each distinct finalist in circuit
+order, and ranks them by actual routed error, SWAP count, proxy error, proxy
+path length, and physical-index tuple. Thus the proxy guides placement search;
+the finalist ranking uses the current ordered routing model.
+
+Hill-climb starts are processed in parallel by default, using up to the
+available CPU count; `max_workers=1` disables multiprocessing. This parallelism
+changes runtime, not the set of starts or the deterministic result for a
+fixed seed.
+
+#### Main mapping flow and CLI
+
+`map_and_route(circuit, topology, exact_search_limit=100_000_000, ...)` counts
+possible placements and chooses:
+
+$$
+P(n,k)<\texttt{exact\_search\_limit}
+\ \Longrightarrow\ \texttt{optimal\_map},
+\qquad
+P(n,k)\ge\texttt{exact\_search\_limit}
+\ \Longrightarrow\ \texttt{heuristic\_map}.
+$$
+
+The comparison is strictly less-than, so a count equal to the threshold uses
+the heuristic. The function then routes the selected initial mapping and
+returns the count, algorithm label, initial mapping, `RoutingResult`, and
+elapsed search-plus-routing time. The exact branch has already routed all
+placements to compare them; the selected mapping is routed once more to
+produce the common result object.
+
+Run the default example datasets from the repository root:
+
+```powershell
+python -m src.mapping
+```
+
+Select other ordered-interaction and topology CSVs, or tune the search:
+
+```powershell
+python -m src.mapping `
+  --circuit "datasets\interaction_order\algorithms\ghz\ghz_3qubits_ordered_interactions.csv" `
+  --topology "datasets\topologies\full\full_4qubits_weighted_edges.csv" `
+  --exact-search-limit 100000000 `
+  --initial-candidates 100 `
+  --seed 42 `
+  --max-workers 1
+```
+
+The CLI reports possible placements in scientific notation, whether exact or
+heuristic placement was selected, the mapping, the route/SWAP result, the
+modeled routed error, and elapsed time. On Windows, scripts that use the
+default process-based parallelism must protect their entry point with
+`if __name__ == "__main__":`.
 
 Use and test these implementations on the selected large assignment graph
 where the graph type permits, and on the circuit/hardware graphs where the

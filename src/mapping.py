@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
+import math
 import os
 import random
 import time
-import math
+from typing import Literal
 
 from src.circuit_graph.graph import CircuitGraph
 from src.topology_graph.graph import TopologyGraph
@@ -20,6 +21,28 @@ class RoutingResult:
     swap_count: int
     expected_error_rate: float
     final_mapping: dict[int, int]
+
+
+@dataclass(frozen=True)
+class MappingRoutingResult:
+    solution_count: int
+    algorithm: Literal["exact", "heuristic"]
+    initial_mapping: dict[int, int]
+    routing: RoutingResult
+    elapsed_seconds: float
+
+
+def count_possible_mappings(
+    circuit: CircuitGraph,
+    topology: TopologyGraph,
+) -> int:
+    """Return the number of injective logical-to-physical placements."""
+    if topology.qubit_count < circuit.qubit_count:
+        raise ValueError(
+            f"Incompatible topology for this circuit: "
+            f"t: {topology.qubit_count} < c: {circuit.qubit_count}"
+        )
+    return math.perm(topology.qubit_count, circuit.qubit_count)
 
 
 def _interaction_pairs(circuit: CircuitGraph) -> list[tuple[int, int, int]]:
@@ -264,10 +287,12 @@ def _initial_placement_candidates(
     initial_candidates: int,
     rng: random.Random,
 ) -> list[tuple[str, bool, dict[int, int]]]:
-    strategies = [
+    strategies: list[tuple[str, dict[int, int] | None]] = [
+        ("random", None),
         ("degree", _degree_initial_placement(circuit, topology)),
         ("interaction_pair", _interaction_pair_initial_placement(circuit, topology)),
     ]
+    physical_qubits = sorted(topology.graph)
     base_count, remainder = divmod(initial_candidates, len(strategies))
     strategy_counts = [
         base_count + (1 if index < remainder else 0)
@@ -277,9 +302,19 @@ def _initial_placement_candidates(
 
     for (strategy, initial), count in zip(strategies, strategy_counts):
         for index in range(count):
-            candidate = initial.copy()
-            if index:
-                _perturb_placement(candidate, topology, rng)
+            if strategy == "random":
+                candidate = dict(
+                    zip(
+                        range(circuit.qubit_count),
+                        rng.sample(physical_qubits, circuit.qubit_count),
+                    )
+                )
+            else:
+                if initial is None:
+                    raise RuntimeError(f"Missing initial placement for {strategy}")
+                candidate = initial.copy()
+                if index:
+                    _perturb_placement(candidate, topology, rng)
             candidates.append((strategy, index == 0, candidate))
 
     return candidates
@@ -573,10 +608,11 @@ def heuristic_map(
     All distinct locally improved candidates and the preserved strategy starts
     are routed in circuit order and ranked by exact expected error rate before
     SWAP count.
-    Initial candidates are split evenly across degree-based and most-frequent
-    interaction-pair starts. The unperturbed start from each strategy is
-    preserved for routing alongside every distinct placement found by hill
-    climbing. Hill climbing runs in separate processes by default; set
+    Initial candidates are split evenly across random, degree-based, and
+    most-frequent interaction-pair starts. The first random placement and the
+    unperturbed start from each deterministic strategy are preserved for
+    routing alongside every distinct placement found by hill climbing.
+    Hill climbing runs in separate processes by default; set
     ``max_workers=1`` to run it sequentially. A fixed seed makes the starts
     reproducible.
     """
@@ -673,38 +709,127 @@ def heuristic_map(
     return best_candidate[2]
 
 
-if __name__ == "__main__":
+def map_and_route(
+    circuit: CircuitGraph,
+    topology: TopologyGraph,
+    exact_search_limit: int = 100_000_000,
+    initial_candidates: int = 1000,
+    seed: int | None = 42,
+    max_workers: int | None = None,
+) -> MappingRoutingResult:
+    """Choose exact or heuristic placement, then route the circuit."""
+    if exact_search_limit < 0:
+        raise ValueError("exact_search_limit must be non-negative")
+
+    solution_count = count_possible_mappings(circuit, topology)
+    start_time = time.perf_counter()
+    if solution_count < exact_search_limit:
+        algorithm: Literal["exact", "heuristic"] = "exact"
+        initial_mapping = optimal_map(circuit, topology, max_workers=max_workers)
+    else:
+        algorithm = "heuristic"
+        initial_mapping = heuristic_map(
+            circuit,
+            topology,
+            initial_candidates=initial_candidates,
+            seed=seed,
+            max_workers=max_workers,
+        )
+    routing = route_circuit(circuit, topology, initial_mapping)
+    return MappingRoutingResult(
+        solution_count=solution_count,
+        algorithm=algorithm,
+        initial_mapping=initial_mapping,
+        routing=routing,
+        elapsed_seconds=time.perf_counter() - start_time,
+    )
+
+
+def main() -> None:
+    import argparse
+    from pathlib import Path
+
     from src.circuit_graph.loader import load_circuit_graph
     from src.topology_graph.loader import load_topology_graph
 
-    circuit = load_circuit_graph(
-        r"E:\Cesar\Python\Grafos\projeto-parte2\datasets\interaction_order\algorithms\bmw_quark_copula\bmw_quark_copula_6qubits_ordered_interactions.csv"
+    repository_root = Path(__file__).resolve().parents[1]
+    default_circuit = (
+        repository_root
+        / "datasets"
+        / "interaction_order"
+        / "algorithms"
+        / "bmw_quark_copula"
+        / "bmw_quark_copula_6qubits_ordered_interactions.csv"
     )
-    topology = load_topology_graph(
-        r"E:\Cesar\Python\Grafos\projeto-parte2\datasets\topologies\full\full_14qubits_weighted_edges.csv"
+    default_topology = (
+        repository_root
+        / "datasets"
+        / "topologies"
+        / "full"
+        / "full_12qubits_weighted_edges.csv"
+    )
+    parser = argparse.ArgumentParser(
+        description="Map and route a quantum circuit onto a hardware topology."
+    )
+    parser.add_argument(
+        "--circuit",
+        type=Path,
+        default=default_circuit,
+        help="CSV file with ordered circuit interactions.",
+    )
+    parser.add_argument(
+        "--topology",
+        type=Path,
+        default=default_topology,
+        help="CSV file with weighted hardware edges.",
+    )
+    parser.add_argument(
+        "--exact-search-limit",
+        type=int,
+        default=100_000_000,
+        help="Use exact search only when the solution count is below this limit.",
+    )
+    parser.add_argument(
+        "--initial-candidates",
+        type=int,
+        default=1000,
+        help="Number of starting placements used by the heuristic.",
+    )
+    parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument(
+        "--max-workers",
+        type=int,
+        default=None,
+        help="Maximum worker processes; use 1 to disable multiprocessing.",
+    )
+    args = parser.parse_args()
+    for input_path in (args.circuit, args.topology):
+        if not input_path.is_file():
+            parser.error(f"Input file does not exist: {input_path}")
+
+    circuit = load_circuit_graph(str(args.circuit))
+    topology = load_topology_graph(str(args.topology))
+    result = map_and_route(
+        circuit,
+        topology,
+        exact_search_limit=args.exact_search_limit,
+        initial_candidates=args.initial_candidates,
+        seed=args.seed,
+        max_workers=args.max_workers,
     )
 
-    iteractions = math.factorial(topology.qubit_count) // math.factorial(
-        topology.qubit_count - circuit.qubit_count
+    algorithm_name = (
+        "Exact placement search (optimal_map; shortest-risk-path routing)"
+        if result.algorithm == "exact"
+        else "Heuristic placement search (heuristic_map; shortest-risk-path routing)"
     )
-    print(f"Total solutions: {iteractions}")
+    print(f"Possible placements: {result.solution_count:.3e}")
+    print(f"Method used: {algorithm_name}")
+    print(f"Initial mapping: {result.initial_mapping}")
+    print(f"Routing result: {result.routing}")
+    print(f"Expected routed error: {result.routing.expected_error_rate}")
+    print(f"Total time: {result.elapsed_seconds:.2f}s")
 
-    start_time = time.time()
-    if iteractions < 100_000_000:
-        print("CALCULATING OPTIMAL SOLUTION")
-        placement = optimal_map(circuit, topology)
-    else:
-        print("CALCULATING HEURISTIC SOLUTION")
-        placement = heuristic_map(
-            circuit,
-            topology,
-            initial_candidates=1000,
-            seed=42,
-        )
 
-    print(f"Mapping time: {time.time() - start_time:2f}s")
-
-    routing_result = route_circuit(circuit, topology, placement)
-    print("Routing result:", routing_result)
-
-    print("Expected routed error:", routing_result.expected_error_rate)
+if __name__ == "__main__":
+    main()

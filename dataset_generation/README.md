@@ -1,7 +1,7 @@
 # Dataset generation
 
-For the project overview in both languages, see the
-[English README](../README.md) and [Portuguese README](../README.pt-BR.md).
+For the project overview, see the
+[project README](../README.md).
 
 The generators are separated by dataset type. Generated benchmark circuits
 are stored under `datasets/algorithms/<benchmark>/`, random circuits under
