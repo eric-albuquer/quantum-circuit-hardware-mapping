@@ -10,6 +10,10 @@ from dataset_generation.paths import DATASETS_ROOT
 
 
 LOGGER = logging.getLogger(__name__)
+GATE_ERROR_MEDIAN = 0.0015
+GATE_ERROR_LOG_SIGMA = 0.5
+GATE_ERROR_MIN = 0.0002
+GATE_ERROR_MAX = 0.01
 TOPOLOGY_CONFIG = {
     "line": tuple(range(3, 20)),
     "ring": tuple(range(3, 20)),
@@ -43,9 +47,13 @@ def _generate_weighted_edges(
     rng: np.random.Generator,
 ) -> list[dict[str, float | int]]:
     gate_errors = np.clip(
-        rng.lognormal(mean=np.log(0.015), sigma=0.5, size=len(edges)),
-        0.002,
-        0.10,
+        rng.lognormal(
+            mean=np.log(GATE_ERROR_MEDIAN),
+            sigma=GATE_ERROR_LOG_SIGMA,
+            size=len(edges),
+        ),
+        GATE_ERROR_MIN,
+        GATE_ERROR_MAX,
     )
     return [
         {

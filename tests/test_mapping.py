@@ -1,16 +1,13 @@
 import random
 import unittest
-from collections import Counter
 from unittest.mock import patch
 
 from src.circuit_graph.graph import CircuitEdge, CircuitGraph
 from src.mapping import (
     RoutingResult,
     _interaction_pair_initial_placement,
-    _locality_initial_placement,
     _improve_placement,
     _initial_placement_candidates,
-    estimate_placement_cost,
     heuristic_map,
     optimal_map,
     route_circuit,
@@ -46,6 +43,29 @@ def make_topology(links: list[tuple[int, int]], qubit_count: int) -> TopologyGra
     return TopologyGraph(edges)
 
 
+def placement_proxy_cost(
+    circuit: CircuitGraph,
+    topology: TopologyGraph,
+    mapping: dict[int, int],
+) -> tuple[float, int]:
+    success_probability = 1.0
+    distance = 0
+    for logical_1 in range(circuit.qubit_count):
+        for logical_2 in range(logical_1 + 1, circuit.qubit_count):
+            count = circuit.iteraction_matrix[logical_1][logical_2]
+            if not count:
+                continue
+            physical_1 = mapping[logical_1]
+            physical_2 = mapping[logical_2]
+            success_probability *= (
+                1.0 - topology.error_matrix[physical_1][physical_2]
+            ) ** count
+            distance += count * (
+                len(topology.path_matrix[physical_1][physical_2]) - 1
+            )
+    return 1.0 - success_probability, distance
+
+
 class MappingTests(unittest.TestCase):
     def test_placement_searches_combine_interaction_errors_as_probabilities(self):
         circuit = make_circuit(2, [(0, 1), (0, 1)])
@@ -62,21 +82,61 @@ class MappingTests(unittest.TestCase):
             {0: 0, 1: 1},
         )
         optimal_mapping = optimal_map(circuit, topology)
-        optimal_error, _ = estimate_placement_cost(
-            circuit,
-            topology,
-            optimal_mapping,
-        )
+        optimal_error = route_circuit(circuit, topology, optimal_mapping).expected_error_rate
 
         self.assertAlmostEqual(heuristic_cost[0], 1.0 - 0.9**2)
         self.assertAlmostEqual(optimal_error, 1.0 - 0.9**2)
-        estimated_error, estimated_distance = estimate_placement_cost(
+
+    def test_delta_placement_cost_handles_certain_error(self):
+        circuit = make_circuit(2, [(0, 1)])
+        topology = make_topology([(0, 1)], 2)
+        topology.error_matrix[0][1] = 1.0
+        topology.error_matrix[1][0] = 1.0
+
+        mapping, cost = _improve_placement(circuit, topology, {0: 0, 1: 1})
+
+        self.assertEqual(mapping, {0: 0, 1: 1})
+        self.assertEqual(cost, (1.0, 1))
+
+    def test_delta_search_returns_a_local_minimum_of_full_placement_cost(self):
+        circuit = make_circuit(4, [(0, 1), (0, 1), (0, 2), (1, 3), (2, 3)])
+        topology = make_topology([(0, 1), (1, 2), (2, 3), (3, 4)], 5)
+
+        mapping, delta_cost = _improve_placement(
             circuit,
             topology,
-            {0: 0, 1: 1},
+            {0: 0, 1: 2, 2: 3, 3: 4},
         )
-        self.assertAlmostEqual(estimated_error, 1.0 - 0.9**2)
-        self.assertEqual(estimated_distance, 2)
+        full_cost = placement_proxy_cost(circuit, topology, mapping)
+        self.assertAlmostEqual(delta_cost[0], full_cost[0])
+        self.assertEqual(delta_cost[1], full_cost[1])
+
+        logical_qubits = list(range(circuit.qubit_count))
+        for index, logical_1 in enumerate(logical_qubits):
+            for logical_2 in logical_qubits[index + 1 :]:
+                mapping[logical_1], mapping[logical_2] = (
+                    mapping[logical_2],
+                    mapping[logical_1],
+                )
+                self.assertGreaterEqual(
+                    placement_proxy_cost(circuit, topology, mapping),
+                    full_cost,
+                )
+                mapping[logical_1], mapping[logical_2] = (
+                    mapping[logical_2],
+                    mapping[logical_1],
+                )
+
+        unused_physical = set(topology.graph) - set(mapping.values())
+        for logical in logical_qubits:
+            original_physical = mapping[logical]
+            for physical in unused_physical:
+                mapping[logical] = physical
+                self.assertGreaterEqual(
+                    placement_proxy_cost(circuit, topology, mapping),
+                    full_cost,
+                )
+            mapping[logical] = original_physical
 
     def test_topology_precomputes_minimum_error_paths_with_dijkstra(self):
         topology = TopologyGraph(
@@ -112,19 +172,88 @@ class MappingTests(unittest.TestCase):
         circuit = make_circuit(4, [(0, 1), (0, 1), (0, 2), (1, 3)])
         topology = make_topology([(0, 1), (1, 2), (2, 3), (3, 4)], 5)
 
-        first = heuristic_map(circuit, topology, restarts=8, seed=7)
-        second = heuristic_map(circuit, topology, restarts=8, seed=7)
+        first = heuristic_map(
+            circuit,
+            topology,
+            initial_candidates=8,
+            seed=7,
+            max_workers=1,
+        )
+        second = heuristic_map(
+            circuit,
+            topology,
+            initial_candidates=8,
+            seed=7,
+            max_workers=1,
+        )
 
         self.assertEqual(first, second)
         self.assertEqual(set(first), set(range(4)))
         self.assertEqual(len(set(first.values())), 4)
-        self.assertLessEqual(
-            estimate_placement_cost(circuit, topology, first)[1],
-            estimate_placement_cost(
-                circuit,
-                topology,
-                {0: 0, 1: 4, 2: 1, 3: 3},
-            )[1],
+        routed_result = route_circuit(circuit, topology, first)
+        self.assertGreaterEqual(routed_result.expected_error_rate, 0.0)
+        self.assertLessEqual(routed_result.expected_error_rate, 1.0)
+
+    def test_parallel_hill_climbing_matches_sequential_result(self):
+        circuit = make_circuit(4, [(0, 1), (0, 1), (0, 2), (1, 3)])
+        topology = make_topology([(0, 1), (1, 2), (2, 3), (3, 4)], 5)
+
+        sequential = heuristic_map(
+            circuit,
+            topology,
+            initial_candidates=8,
+            seed=7,
+            max_workers=1,
+        )
+        parallel = heuristic_map(
+            circuit,
+            topology,
+            initial_candidates=8,
+            seed=7,
+            max_workers=2,
+        )
+
+        self.assertEqual(parallel, sequential)
+
+    def test_optimal_map_minimizes_routed_error_including_swaps(self):
+        circuit = make_circuit(3, [(0, 2), (1, 2), (0, 1), (0, 2)])
+        topology = TopologyGraph(
+            [
+                TopologyEdge(0, 1, 0.002, 0.998),
+                TopologyEdge(1, 0, 0.002, 0.998),
+                TopologyEdge(1, 2, 0.04, 0.96),
+                TopologyEdge(2, 1, 0.04, 0.96),
+                TopologyEdge(2, 3, 0.008, 0.992),
+                TopologyEdge(3, 2, 0.008, 0.992),
+            ]
+        )
+
+        candidates = [
+            {0: physical_0, 1: physical_1, 2: physical_2}
+            for physical_0 in range(4)
+            for physical_1 in range(4)
+            for physical_2 in range(4)
+            if len({physical_0, physical_1, physical_2}) == 3
+        ]
+        best_score = min(
+            (
+                result.expected_error_rate,
+                result.swap_count,
+                tuple(mapping[logical] for logical in range(3)),
+            )
+            for mapping in candidates
+            for result in [route_circuit(circuit, topology, mapping)]
+        )
+
+        mapping = optimal_map(circuit, topology)
+        result = route_circuit(circuit, topology, mapping)
+        self.assertEqual(
+            (
+                result.expected_error_rate,
+                result.swap_count,
+                tuple(mapping[logical] for logical in range(3)),
+            ),
+            best_score,
         )
 
     def test_interaction_pair_start_places_most_frequent_pair_adjacent(self):
@@ -139,23 +268,7 @@ class MappingTests(unittest.TestCase):
             2,
         )
 
-    def test_locality_start_uses_a_high_degree_physical_qubit_for_circuit_hub(self):
-        circuit = make_circuit(4, [(0, 1), (0, 2), (0, 3), (1, 2)])
-        topology = make_topology(
-            [(0, 1), (1, 2), (1, 3), (3, 4)],
-            5,
-        )
-
-        placement = _locality_initial_placement(circuit, topology)
-        physical_degrees = [len(neighbors) for neighbors in topology.graph.values()]
-
-        self.assertEqual(
-            len(topology.graph[placement[0]]),
-            max(physical_degrees),
-        )
-        self.assertEqual(len(set(placement.values())), 4)
-
-    def test_thousand_initial_candidates_are_evenly_split_and_reproducible(self):
+    def test_thousand_initial_candidates_are_balanced_and_reproducible(self):
         circuit = make_circuit(4, [(0, 1), (0, 1), (0, 2), (1, 3)])
         topology = make_topology([(0, 1), (1, 2), (2, 3), (3, 4)], 5)
 
@@ -174,41 +287,51 @@ class MappingTests(unittest.TestCase):
 
         self.assertEqual(first, second)
         self.assertEqual(len(first), 1000)
+        self.assertEqual(sum(is_initial for _, is_initial, _ in first), 2)
+        strategy_counts = {
+            strategy: 0 for strategy in ("degree", "interaction_pair")
+        }
+        for strategy, _, _ in first:
+            strategy_counts[strategy] += 1
         self.assertEqual(
-            Counter(strategy for strategy, _, _ in first),
+            strategy_counts,
             {
-                "degree": 250,
-                "interaction_pair": 250,
-                "locality": 250,
-                "random": 250,
+                "degree": 500,
+                "interaction_pair": 500,
             },
         )
         for _, _, candidate in first:
             self.assertEqual(set(candidate), set(range(4)))
             self.assertEqual(len(set(candidate.values())), 4)
 
-    def test_non_divisible_restart_count_distributes_remainder_in_order(self):
+    def test_non_divisible_candidate_count_distributes_remainder_deterministically(self):
         circuit = make_circuit(3, [(0, 1), (1, 2)])
         topology = make_topology([(0, 1), (1, 2)], 3)
 
         candidates = _initial_placement_candidates(
             circuit,
             topology,
-            10,
+            9,
             random.Random(7),
         )
 
+        self.assertEqual(len(candidates), 9)
         self.assertEqual(
-            Counter(strategy for strategy, _, _ in candidates),
-            {
-                "degree": 3,
-                "interaction_pair": 3,
-                "locality": 2,
-                "random": 2,
-            },
+            [strategy for strategy, _, _ in candidates],
+            [
+                "degree",
+                "degree",
+                "degree",
+                "degree",
+                "degree",
+                "interaction_pair",
+                "interaction_pair",
+                "interaction_pair",
+                "interaction_pair",
+            ],
         )
 
-    def test_initial_candidate_from_each_strategy_is_preserved_for_routing(self):
+    def test_unperturbed_strategy_starts_are_preserved_for_routing(self):
         circuit = make_circuit(4, [(0, 1), (0, 1), (0, 2), (1, 3)])
         topology = make_topology([(0, 1), (1, 2), (2, 3), (3, 4)], 5)
         initial_candidates = _initial_placement_candidates(
@@ -217,16 +340,11 @@ class MappingTests(unittest.TestCase):
             8,
             random.Random(7),
         )
-        initial_keys = {
-            tuple(candidate[logical] for logical in range(4))
-            for _, is_initial, candidate in initial_candidates
-            if is_initial
-        }
         routed_mappings = []
 
         def discard_start_with_local_improvement(circuit, topology, mapping):
             improved = {logical: logical for logical in range(circuit.qubit_count)}
-            return improved, estimate_placement_cost(circuit, topology, improved)
+            return improved, (0.0, 0)
 
         def record_routed_mapping(circuit, topology, mapping):
             routed_mappings.append(mapping.copy())
@@ -242,13 +360,25 @@ class MappingTests(unittest.TestCase):
                 side_effect=record_routed_mapping,
             ),
         ):
-            heuristic_map(circuit, topology, restarts=8, seed=7, route_candidates=1)
+            heuristic_map(
+                circuit,
+                topology,
+                initial_candidates=8,
+                seed=7,
+                max_workers=1,
+            )
 
         routed_keys = {
             tuple(mapping[logical] for logical in range(4))
             for mapping in routed_mappings
         }
-        self.assertTrue(initial_keys.issubset(routed_keys))
+        expected_routed_keys = {
+            tuple(candidate[logical] for logical in range(4))
+            for strategy, is_initial, candidate in initial_candidates
+            if is_initial
+        }
+        expected_routed_keys.add(tuple(range(4)))
+        self.assertEqual(routed_keys, expected_routed_keys)
 
     def test_routing_counts_swaps_and_updates_mapping(self):
         circuit = make_circuit(3, [(0, 2), (0, 1)])

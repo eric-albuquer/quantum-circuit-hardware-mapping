@@ -38,7 +38,7 @@ com múltiplos qubits.
 | Modelo | Vértices | Arestas | Classificação e pesos |
 | --- | --- | --- | --- |
 | Grafo de interações do circuito (um grafo por circuito) | Qubits lógicos, identificados pelos índices do QASM | Um par é uma aresta quando tem ao menos uma instrução de dois qubits; o CSV também registra pares com zero interações | Simples, sem laços, não dirigido, ponderado e não necessariamente conexo. O peso inteiro é a quantidade de instruções de dois qubits do par; é não negativo. Direção, tipo e ordem temporal das portas são agregados. |
-| Grafo de acoplamento do hardware (um grafo por topologia) | Qubits físicos de um `CouplingMap` do Qiskit | Arcos direcionados para os acoplamentos permitidos entre origem e destino | Simples, dirigido, ponderado, estático e atualmente conexo nas topologias geradas. JSON/CSV armazenam taxas sintéticas positivas de erro de porta e fidelidades derivadas; arcos recíprocos podem ter valores sintéticos diferentes. Não há pesos negativos. |
+| Grafo de acoplamento do hardware (um grafo por topologia) | Qubits físicos de um `CouplingMap` do Qiskit | Arcos direcionados para os acoplamentos permitidos entre origem e destino | Simples, dirigido, ponderado, estático e atualmente conexo nas topologias geradas. JSON/CSV armazenam taxas sintéticas positivas de erro de porta (mediana de 0,15%, limitadas a 0,02%–1%) e fidelidades derivadas; arcos recíprocos podem ter valores sintéticos diferentes. Não há pesos negativos. |
 
 Os grafos de circuito e de hardware têm domínios de vértices diferentes:
 qubits **lógicos** versus qubits **físicos**. Não devem ser tratados como um
@@ -75,32 +75,36 @@ uma biblioteca como implementação entregue:
    de custo mínimo, não uma solução de roteamento: as arestas de hardware
    omitidas continuam existindo, e as rotas não devem ser restringidas à
    árvore a menos que isso seja um experimento separado.
-5. **Posicionamento e roteamento:** `src/mapping.py` combina uma base por
-   grau/frequência com inícios guiados pelo par lógico mais frequente e pela
-   localidade do circuito, além de inícios aleatórios independentes e
-   reproduzíveis. Os reinícios são divididos igualmente entre as quatro
-   estratégias (250 de cada com 1.000 reinícios); eventual resto é distribuído
-   na ordem grau, par frequente, localidade e aleatório. Os inícios guiados
-   crescem o mapeamento priorizando interações com qubits já posicionados; a
-   estratégia por par começa em uma ligação física de baixo erro. Cada critério
-   tem sua própria função: `_degree_initial_placement`,
-   `_interaction_pair_initial_placement`, `_locality_initial_placement` e
-   `_random_initial_placement`. Os quatro
-   candidatos-base são preservados sem melhoria local e sempre considerados
-   no roteamento final. Os demais passam por melhoria local com trocas entre
-   qubits lógicos ou movimentos para qubits físicos não usados.
+5. **Posicionamento e roteamento:** `src/mapping.py` divide igualmente os
+   posicionamentos iniciais entre estratégias por grau e pelo par de
+   interações mais frequente, com uma seed fixa para reprodutibilidade. O
+   início não perturbado de cada estratégia é preservado sem melhoria local e
+   sempre considerado no roteamento final. Os demais passam por melhoria local
+   com trocas entre qubits lógicos ou movimentos para qubits físicos não usados.
+   O hill climbing roda em processos paralelos por padrão; use
+   `max_workers=1` para desativar o paralelismo.
+   `_improve_placement` calcula deltas apenas das interações incidentes nos
+   qubits envolvidos em cada movimento, em vez de reavaliar o circuito todo.
    A aproximação do posicionamento soma, para cada par do
    circuito, a quantidade de interações multiplicada pela menor distância em
    saltos no hardware não dirigido. Os arcos dirigidos de acoplamento são
    projetados em ligações não dirigidas neste experimento; direção de portas
    e erro dependente da direção não são modelados por essa aproximação.
 
-   O mapeador roteiriza os melhores candidatos da aproximação na ordem das
-   interações, atualiza o posicionamento lógico-físico após cada SWAP e
-   retorna o candidato com menos SWAPs roteirizados (usando o custo da
-   aproximação para desempate). `route_circuit` retorna a contagem de SWAPs,
-   o posicionamento final e uma `expected_error_rate`; `estimate_placement_cost`
-   retorna a aproximação. A estimativa de erro considera cada SWAP como três
+   `heuristic_map` recebe `initial_candidates` (total de inícios gerados) e
+   `max_workers` para controlar o paralelismo do hill climbing. Ele roteiriza
+   todos os posicionamentos distintos encontrados pelo hill climbing, além dos
+   inícios não perturbados preservados. O mapeador roteiriza cada
+   posicionamento na ordem das interações, atualiza o posicionamento
+   lógico-físico após cada SWAP e seleciona o candidato com menor erro
+   roteirizado, usando quantidade de SWAPs e custo da aproximação para desempate.
+   No Windows, chamadas feitas por scripts devem estar protegidas por
+   `if __name__ == "__main__":` ao usar o modo multiprocessing padrão.
+   `route_circuit` retorna a contagem de SWAPs, o posicionamento final e uma
+   `expected_error_rate`. `optimal_map` compara exaustivamente os
+   posicionamentos por esse erro (e, em empate, pela quantidade de SWAPs).
+   A busca exaustiva pode ser significativamente mais lenta,
+   pois roteiriza cada posicionamento. A estimativa de erro considera cada SWAP como três
    portas de dois qubits e cada interação do circuito como uma porta de dois
    qubits, usando a média das taxas de erro dos arcos dirigidos disponíveis
    para cada ligação não dirigida. Combina probabilidades de sucesso de

@@ -3,91 +3,91 @@
   "num_qubits": 5,
   "qubit_properties": {
     "0": {
-      "readout_error": 0.024395969512930046,
-      "readout_fidelity": 0.97560403048707,
-      "t1_coherence_us": 142.9758912915246
+      "readout_error": 0.020769068616912207,
+      "readout_fidelity": 0.9792309313830878,
+      "t1_coherence_us": 129.35973775815364
     },
     "1": {
-      "readout_error": 0.018923916645955205,
-      "readout_fidelity": 0.9810760833540448,
-      "t1_coherence_us": 197.37638446522175
+      "readout_error": 0.028772692662568534,
+      "readout_fidelity": 0.9712273073374315,
+      "t1_coherence_us": 169.80526039819998
     },
     "2": {
-      "readout_error": 0.0259146303809455,
-      "readout_fidelity": 0.9740853696190545,
-      "t1_coherence_us": 173.02304187458725
+      "readout_error": 0.020561097088615633,
+      "readout_fidelity": 0.9794389029113844,
+      "t1_coherence_us": 109.42941718397309
     },
     "3": {
-      "readout_error": 0.03677963208933107,
-      "readout_fidelity": 0.9632203679106689,
-      "t1_coherence_us": 135.91576842195144
+      "readout_error": 0.021866714914167494,
+      "readout_fidelity": 0.9781332850858325,
+      "t1_coherence_us": 166.98543577916723
     },
     "4": {
-      "readout_error": 0.018211821636044335,
-      "readout_fidelity": 0.9817881783639557,
-      "t1_coherence_us": 166.27680130757895
+      "readout_error": 0.01604882672156577,
+      "readout_fidelity": 0.9839511732784342,
+      "t1_coherence_us": 160.90525921948446
     }
   },
   "coupling_map_weighted": [
     {
       "source_qubit": 0,
       "target_qubit": 1,
-      "gate_error_rate": 0.011897655390488968,
-      "gate_fidelity": 0.9881023446095111
+      "gate_error_rate": 0.0022130266253146125,
+      "gate_fidelity": 0.9977869733746854
     },
     {
       "source_qubit": 1,
       "target_qubit": 0,
-      "gate_error_rate": 0.011883909286407727,
-      "gate_fidelity": 0.9881160907135923
+      "gate_error_rate": 0.0033357109467087374,
+      "gate_fidelity": 0.9966642890532913
     },
     {
       "source_qubit": 1,
       "target_qubit": 2,
-      "gate_error_rate": 0.016929054329143784,
-      "gate_fidelity": 0.9830709456708562
+      "gate_error_rate": 0.001567779010211818,
+      "gate_fidelity": 0.9984322209897882
     },
     {
       "source_qubit": 2,
       "target_qubit": 1,
-      "gate_error_rate": 0.005762722842779946,
-      "gate_fidelity": 0.9942372771572201
+      "gate_error_rate": 0.0009392706451407112,
+      "gate_fidelity": 0.9990607293548592
     },
     {
       "source_qubit": 2,
       "target_qubit": 3,
-      "gate_error_rate": 0.006331842606336297,
-      "gate_fidelity": 0.9936681573936637
+      "gate_error_rate": 0.0018964954811942724,
+      "gate_fidelity": 0.9981035045188057
     },
     {
       "source_qubit": 3,
       "target_qubit": 2,
-      "gate_error_rate": 0.011323796953804359,
-      "gate_fidelity": 0.9886762030461956
+      "gate_error_rate": 0.0018048886919500035,
+      "gate_fidelity": 0.9981951113080499
     },
     {
       "source_qubit": 3,
       "target_qubit": 4,
-      "gate_error_rate": 0.009039778220159979,
-      "gate_fidelity": 0.99096022177984
+      "gate_error_rate": 0.000987917300263547,
+      "gate_fidelity": 0.9990120826997364
     },
     {
       "source_qubit": 4,
       "target_qubit": 3,
-      "gate_error_rate": 0.01755210467810524,
-      "gate_fidelity": 0.9824478953218948
+      "gate_error_rate": 0.0012778669733008602,
+      "gate_fidelity": 0.9987221330266991
     },
     {
       "source_qubit": 4,
       "target_qubit": 0,
-      "gate_error_rate": 0.009526126324770515,
-      "gate_fidelity": 0.9904738736752294
+      "gate_error_rate": 0.0027829560990778016,
+      "gate_fidelity": 0.9972170439009223
     },
     {
       "source_qubit": 0,
       "target_qubit": 4,
-      "gate_error_rate": 0.007403096439313736,
-      "gate_fidelity": 0.9925969035606863
+      "gate_error_rate": 0.0012032538654096361,
+      "gate_fidelity": 0.9987967461345904
     }
   ]
 }

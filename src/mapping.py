@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+from concurrent.futures import ProcessPoolExecutor
 from dataclasses import dataclass
+import os
 import random
 import time
 import math
 
 from src.circuit_graph.graph import CircuitGraph
 from src.topology_graph.graph import TopologyGraph
+
+
+_WORKER_CIRCUIT: CircuitGraph | None = None
+_WORKER_TOPOLOGY: TopologyGraph | None = None
 
 
 @dataclass(frozen=True)
@@ -25,16 +31,21 @@ def _interaction_pairs(circuit: CircuitGraph) -> list[tuple[int, int, int]]:
     ]
 
 
-def _placement_error_rate(
-    interactions: list[tuple[int, int, int]],
+def _initialize_placement_worker(
+    circuit: CircuitGraph,
     topology: TopologyGraph,
+) -> None:
+    global _WORKER_CIRCUIT, _WORKER_TOPOLOGY
+    _WORKER_CIRCUIT = circuit
+    _WORKER_TOPOLOGY = topology
+
+
+def _improve_placement_worker(
     mapping: dict[int, int],
-) -> float:
-    success_probability = 1.0
-    for logical_1, logical_2, count in interactions:
-        error = topology.error_matrix[mapping[logical_1]][mapping[logical_2]]
-        success_probability *= (1.0 - error) ** count
-    return 1.0 - success_probability
+) -> tuple[dict[int, int], tuple[float, int]]:
+    if _WORKER_CIRCUIT is None or _WORKER_TOPOLOGY is None:
+        raise RuntimeError("Placement worker was not initialized")
+    return _improve_placement(_WORKER_CIRCUIT, _WORKER_TOPOLOGY, mapping)
 
 
 def _validate_mapping(
@@ -51,27 +62,6 @@ def _validate_mapping(
         )
     if not set(mapping.values()).issubset(topology.graph):
         raise ValueError("Mapping refers to a physical qubit absent from the topology")
-
-
-def estimate_placement_cost(
-    circuit: CircuitGraph,
-    topology: TopologyGraph,
-    mapping: dict[int, int],
-) -> tuple[float, int]:
-    """Return cumulative interaction error rate and weighted hardware hop distance."""
-    _validate_mapping(circuit, topology, mapping)
-
-    interactions = _interaction_pairs(circuit)
-    distance = 0
-    for logical_1, logical_2, count in interactions:
-        path = topology.path_matrix[mapping[logical_1]][mapping[logical_2]]
-        if not path:
-            raise ValueError(
-                "Mapped interacting qubits are disconnected in the topology"
-            )
-        distance += count * (len(path) - 1)
-    error_rate = _placement_error_rate(interactions, topology, mapping)
-    return error_rate, distance
 
 
 def route_circuit(
@@ -187,6 +177,9 @@ def _interaction_pair_initial_placement(
         for row in circuit.iteraction_matrix
     ]
     logical_pairs = _interaction_pairs(circuit)
+    if not logical_pairs:
+        return _degree_initial_placement(circuit, topology)
+
     logical_1, logical_2, _ = min(
         logical_pairs,
         key=lambda pair: (
@@ -230,117 +223,52 @@ def _interaction_pair_initial_placement(
     ):
         physical_1, physical_2 = physical_2, physical_1
     mapping = {logical_1: physical_1, logical_2: physical_2}
-    return _grow_locality_initial_placement(circuit, topology, mapping)
-
-
-def _locality_initial_placement(
-    circuit: CircuitGraph,
-    topology: TopologyGraph,
-) -> dict[int, int]:
-    weighted_degrees = [sum(row) for row in circuit.iteraction_matrix]
-    degrees = [
-        sum(weight > 0 for weight in row)
-        for row in circuit.iteraction_matrix
-    ]
-    logical = min(
-        range(circuit.qubit_count),
-        key=lambda qubit: (-degrees[qubit], -weighted_degrees[qubit], qubit),
-    )
-    physical = min(
-        topology.graph,
-        key=lambda qubit: (
-            -len(topology.graph[qubit]),
-            sum(
-                len(topology.path_matrix[qubit][target]) - 1
-                for target in topology.graph
-            ),
-            sum(topology.error_matrix[qubit][target] for target in topology.graph),
-            qubit,
+    remaining_logical = sorted(
+        (logical for logical in range(circuit.qubit_count) if logical not in mapping),
+        key=lambda logical: (
+            -weighted_degrees[logical],
+            -degrees[logical],
+            logical,
         ),
     )
-    return _grow_locality_initial_placement(
-        circuit,
-        topology,
-        {logical: physical},
+    remaining_physical = sorted(
+        (physical for physical in topology.graph if physical not in mapping.values()),
+        key=lambda physical: (
+            -len(topology.graph[physical]),
+            sum(
+                topology.error_matrix[physical][target]
+                for target in topology.graph
+            ),
+            physical,
+        ),
     )
-
-
-def _grow_locality_initial_placement(
-    circuit: CircuitGraph,
-    topology: TopologyGraph,
-    mapping: dict[int, int],
-) -> dict[int, int]:
-    weighted_degrees = [sum(row) for row in circuit.iteraction_matrix]
-    degrees = [
-        sum(weight > 0 for weight in row)
-        for row in circuit.iteraction_matrix
-    ]
-    while len(mapping) < circuit.qubit_count:
-        logical = min(
-            (qubit for qubit in range(circuit.qubit_count) if qubit not in mapping),
-            key=lambda qubit: (
-                -sum(circuit.iteraction_matrix[qubit][mapped] for mapped in mapping),
-                -weighted_degrees[qubit],
-                -degrees[qubit],
-                qubit,
-            ),
-        )
-        physical = min(
-            set(topology.graph) - set(mapping.values()),
-            key=lambda qubit: (
-                sum(
-                    circuit.iteraction_matrix[logical][mapped]
-                    * topology.error_matrix[qubit][mapped_physical]
-                    for mapped, mapped_physical in mapping.items()
-                ),
-                sum(
-                    circuit.iteraction_matrix[logical][mapped]
-                    * (len(topology.path_matrix[qubit][mapped_physical]) - 1)
-                    for mapped, mapped_physical in mapping.items()
-                ),
-                qubit,
-            ),
-        )
-        mapping[logical] = physical
-
+    mapping.update(zip(remaining_logical, remaining_physical))
     return mapping
-
-
-def _random_initial_placement(
-    circuit: CircuitGraph,
-    topology: TopologyGraph,
-    rng: random.Random,
-) -> dict[int, int]:
-    physical_qubits = rng.sample(list(topology.graph), circuit.qubit_count)
-    return dict(zip(range(circuit.qubit_count), physical_qubits))
 
 
 def _initial_placement_candidates(
     circuit: CircuitGraph,
     topology: TopologyGraph,
-    restarts: int,
+    initial_candidates: int,
     rng: random.Random,
 ) -> list[tuple[str, bool, dict[int, int]]]:
     strategies = [
         ("degree", _degree_initial_placement(circuit, topology)),
         ("interaction_pair", _interaction_pair_initial_placement(circuit, topology)),
-        ("locality", _locality_initial_placement(circuit, topology)),
     ]
-    base_count, remainder = divmod(restarts, 4)
-    strategy_counts = [base_count + (index < remainder) for index in range(4)]
+    base_count, remainder = divmod(initial_candidates, len(strategies))
+    strategy_counts = [
+        base_count + (1 if index < remainder else 0)
+        for index in range(len(strategies))
+    ]
     candidates: list[tuple[str, bool, dict[int, int]]] = []
 
-    for (strategy, initial), count in zip(strategies, strategy_counts[:3]):
+    for (strategy, initial), count in zip(strategies, strategy_counts):
         for index in range(count):
             candidate = initial.copy()
             if index:
                 _perturb_placement(candidate, topology, rng)
             candidates.append((strategy, index == 0, candidate))
-
-    for index in range(strategy_counts[3]):
-        candidates.append(
-            ("random", index == 0, _random_initial_placement(circuit, topology, rng))
-        )
 
     return candidates
 
@@ -372,42 +300,144 @@ def _improve_placement(
     mapping: dict[int, int],
 ) -> tuple[dict[int, int], tuple[float, int]]:
     interactions = _interaction_pairs(circuit)
+    paths = topology.path_matrix
+    errors = topology.error_matrix
+    incident_interactions: list[list[int]] = [
+        [] for _ in range(circuit.qubit_count)
+    ]
+    physical_pair_costs: dict[tuple[int, int], tuple[bool, float, int]] = {}
+    for interaction_index, (logical_1, logical_2, _) in enumerate(interactions):
+        incident_interactions[logical_1].append(interaction_index)
+        incident_interactions[logical_2].append(interaction_index)
 
-    def cost_for() -> tuple[float, int]:
-        total_hops = 0
-        for logical_1, logical_2, count in interactions:
-            physical_1 = mapping[logical_1]
-            physical_2 = mapping[logical_2]
-            path = topology.path_matrix[physical_1][physical_2]
+    def interaction_cost(
+        interaction_index: int,
+    ) -> tuple[bool, float, int]:
+        logical_1, logical_2, count = interactions[interaction_index]
+        physical_1 = mapping[logical_1]
+        physical_2 = mapping[logical_2]
+        physical_pair = (physical_1, physical_2)
+        pair_cost = physical_pair_costs.get(physical_pair)
+        if pair_cost is None:
+            path = paths[physical_1][physical_2]
             if not path:
                 raise ValueError(
                     "Mapped interacting qubits are disconnected in the topology"
                 )
-            total_hops += count * (len(path) - 1)
-        return _placement_error_rate(interactions, topology, mapping), total_hops
+            error = errors[physical_1][physical_2]
+            pair_cost = (
+                error == 1.0,
+                0.0 if error == 1.0 else math.log1p(-error),
+                len(path) - 1,
+            )
+            physical_pair_costs[physical_pair] = pair_cost
 
-    current_cost = cost_for()
+        certain_error, log_success_per_gate, hops_per_gate = pair_cost
+        return (
+            certain_error,
+            count * log_success_per_gate,
+            count * hops_per_gate,
+        )
+
+    interaction_costs = [
+        interaction_cost(interaction_index)
+        for interaction_index in range(len(interactions))
+    ]
+    total_log_success = sum(
+        log_success
+        for certain_error, log_success, _ in interaction_costs
+        if not certain_error
+    )
+    certain_error_count = sum(
+        certain_error for certain_error, _, _ in interaction_costs
+    )
+    total_hops = sum(hops for _, _, hops in interaction_costs)
     logical_qubits = list(range(circuit.qubit_count))
+    logical_swaps = [
+        (
+            logical_1,
+            logical_2,
+            sorted(
+                set(incident_interactions[logical_1])
+                | set(incident_interactions[logical_2])
+            ),
+        )
+        for index, logical_1 in enumerate(logical_qubits)
+        for logical_2 in logical_qubits[index + 1 :]
+    ]
+
+    def cost_from_totals(
+        log_success: float,
+        certain_errors: int,
+        hops: int,
+    ) -> tuple[float, int]:
+        error_rate = (
+            1.0
+            if certain_errors
+            else -math.expm1(log_success)
+        )
+        return error_rate, hops
+
+    def evaluate_affected(
+        affected: list[int],
+    ) -> tuple[
+        tuple[float, int],
+        tuple[float, int, int],
+    ]:
+        candidate_log_success = total_log_success
+        candidate_certain_errors = certain_error_count
+        candidate_hops = total_hops
+        for interaction_index in affected:
+            old_cost = interaction_costs[interaction_index]
+            new_cost = interaction_cost(interaction_index)
+
+            old_certain, old_log_success, old_hops = old_cost
+            new_certain, new_log_success, new_hops = new_cost
+            candidate_certain_errors += int(new_certain) - int(old_certain)
+            if not old_certain:
+                candidate_log_success -= old_log_success
+            if not new_certain:
+                candidate_log_success += new_log_success
+            candidate_hops += new_hops - old_hops
+
+        totals = (
+            candidate_log_success,
+            candidate_certain_errors,
+            candidate_hops,
+        )
+        return (
+            cost_from_totals(*totals),
+            totals,
+        )
+
+    current_cost = cost_from_totals(
+        total_log_success,
+        certain_error_count,
+        total_hops,
+    )
 
     while True:
         best_cost = current_cost
         best_move: tuple[str, int, int] | None = None
+        best_affected: list[int] = []
+        best_totals = (total_log_success, certain_error_count, total_hops)
 
         # swaping 2 logical qubits to local minimize
-        for index, logical_1 in enumerate(logical_qubits):
-            for logical_2 in logical_qubits[index + 1 :]:
-                mapping[logical_1], mapping[logical_2] = (
-                    mapping[logical_2],
-                    mapping[logical_1],
-                )
-                candidate_cost = cost_for()
-                mapping[logical_1], mapping[logical_2] = (
-                    mapping[logical_2],
-                    mapping[logical_1],
-                )
-                if candidate_cost < best_cost:
-                    best_cost = candidate_cost
-                    best_move = ("swap", logical_1, logical_2)
+        for logical_1, logical_2, affected in logical_swaps:
+            mapping[logical_1], mapping[logical_2] = (
+                mapping[logical_2],
+                mapping[logical_1],
+            )
+            candidate_cost, totals = evaluate_affected(affected)
+            mapping[logical_1], mapping[logical_2] = (
+                mapping[logical_2],
+                mapping[logical_1],
+            )
+            if candidate_cost < best_cost:
+                best_cost = candidate_cost
+                best_move = ("swap", logical_1, logical_2)
+                best_affected = affected
+                best_totals = totals
 
         # swap 2 physical qubits to local minimize
         unused_physical = set(topology.graph) - set(mapping.values())
@@ -415,10 +445,13 @@ def _improve_placement(
             original_physical = mapping[logical]
             for physical in unused_physical:
                 mapping[logical] = physical
-                candidate_cost = cost_for()
+                affected = incident_interactions[logical]
+                candidate_cost, totals = evaluate_affected(affected)
                 if candidate_cost < best_cost:
                     best_cost = candidate_cost
                     best_move = ("move", logical, physical)
+                    best_affected = affected
+                    best_totals = totals
             mapping[logical] = original_physical
 
         if best_move is None:
@@ -429,31 +462,36 @@ def _improve_placement(
         else:
             mapping[first] = second
         current_cost = best_cost
+        for interaction_index in best_affected:
+            interaction_costs[interaction_index] = interaction_cost(
+                interaction_index
+            )
+        total_log_success, certain_error_count, total_hops = best_totals
 
     return mapping, current_cost
 
 
 def optimal_map(circuit: CircuitGraph, topology: TopologyGraph):
+    """Return the placement with the lowest exact routed error by exhaustive search."""
     current_physic = []
-
-    pairs = _interaction_pairs(circuit)
-
-    def estimate_error() -> float:
-        mapping = dict(enumerate(current_physic))
-        return _placement_error_rate(pairs, topology, mapping)
-
-    min_error = float("inf")
-    best_map = None
+    best_score: tuple[float, int, tuple[int, ...]] | None = None
+    best_map: tuple[int, ...] | None = None
 
     used_physic = [False] * topology.qubit_count
 
     def dfs_physic():
-        nonlocal min_error, best_map
+        nonlocal best_score, best_map
         if len(current_physic) == circuit.qubit_count:
-            total_error = estimate_error()
-            if total_error < min_error:
-                min_error = total_error
-                best_map = [p for p in current_physic]
+            mapping = dict(enumerate(current_physic))
+            routing_result = route_circuit(circuit, topology, mapping)
+            score = (
+                routing_result.expected_error_rate,
+                routing_result.swap_count,
+                tuple(current_physic),
+            )
+            if best_score is None or score < best_score:
+                best_score = score
+                best_map = score[2]
             return
         for i in range(topology.qubit_count):
             if used_physic[i]:
@@ -465,6 +503,8 @@ def optimal_map(circuit: CircuitGraph, topology: TopologyGraph):
             current_physic.pop()
 
     dfs_physic()
+    if best_map is None:
+        raise ValueError("No valid placement exists for this circuit and topology")
     mapped = {l: p for l, p in enumerate(best_map)}
 
     return mapped
@@ -473,21 +513,27 @@ def optimal_map(circuit: CircuitGraph, topology: TopologyGraph):
 def heuristic_map(
     circuit: CircuitGraph,
     topology: TopologyGraph,
-    restarts: int = 100,
+    initial_candidates: int = 100,
     seed: int | None = 0,
-    route_candidates: int = 5,
+    max_workers: int | None = None,
 ) -> dict[int, int]:
-    """Find a placement with shuffled multi-start local search.
+    """Find a placement with multiple initial candidates and local search.
 
-    Search prioritizes estimated error rate, then weighted hop distance. The
-    best proxy candidates are routed in circuit order and ranked by estimated
-    error rate before SWAP count.
-    A fixed seed makes randomized starts reproducible.
+    Local search prioritizes proxy error rate, then weighted hop distance.
+    All distinct locally improved candidates and the preserved strategy starts
+    are routed in circuit order and ranked by exact expected error rate before
+    SWAP count.
+    Initial candidates are split evenly across degree-based and most-frequent
+    interaction-pair starts. The unperturbed start from each strategy is
+    preserved for routing alongside every distinct placement found by hill
+    climbing. Hill climbing runs in separate processes by default; set
+    ``max_workers=1`` to run it sequentially. A fixed seed makes the starts
+    reproducible.
     """
-    if restarts < 1:
-        raise ValueError("restarts must be at least 1")
-    if route_candidates < 1:
-        raise ValueError("route_candidates must be at least 1")
+    if initial_candidates < 1:
+        raise ValueError("initial_candidates must be at least 1")
+    if max_workers is not None and max_workers < 1:
+        raise ValueError("max_workers must be at least 1")
 
     if len(topology.graph) < circuit.qubit_count:
         raise ValueError(
@@ -508,56 +554,63 @@ def heuristic_map(
         tuple[tuple[float, int], dict[int, int]],
     ] = {}
 
-    preserved_initial_keys: list[tuple[int, ...]] = []
-    for _, is_initial, candidate in _initial_placement_candidates(
+    initial_starts = _initial_placement_candidates(
         circuit,
         topology,
-        restarts,
+        initial_candidates,
         rng,
+    )
+    worker_count = min(
+        max_workers if max_workers is not None else (os.cpu_count() or 1),
+        len(initial_starts),
+    )
+    if worker_count > 1:
+        with ProcessPoolExecutor(
+            max_workers=worker_count,
+            initializer=_initialize_placement_worker,
+            initargs=(circuit, topology),
+        ) as executor:
+            improved_starts = executor.map(
+                _improve_placement_worker,
+                (candidate.copy() for _, _, candidate in initial_starts),
+            )
+            improved_candidates = list(improved_starts)
+    else:
+        improved_candidates = [
+            _improve_placement(circuit, topology, candidate.copy())
+            for _, _, candidate in initial_starts
+        ]
+
+    for (_, is_initial, initial_candidate), (candidate, score) in zip(
+        initial_starts,
+        improved_candidates,
     ):
+        initial_key = tuple(
+            initial_candidate[logical] for logical in logical_qubits
+        )
         if is_initial:
-            initial_key = tuple(candidate[logical] for logical in logical_qubits)
-            preserved_initial_keys.append(initial_key)
-            candidates[initial_key] = (
-                estimate_placement_cost(circuit, topology, candidate),
-                candidate.copy(),
+            candidates.setdefault(
+                initial_key,
+                (
+                    score,
+                    initial_candidate,
+                ),
             )
 
-        candidate, score = _improve_placement(
-            circuit,
-            topology,
-            candidate,
-        )
         key = tuple(candidate[logical] for logical in logical_qubits)
-        candidates[key] = (score, candidate.copy())
+        existing = candidates.get(key)
+        if existing is None or score < existing[0]:
+            candidates[key] = (score, candidate.copy())
 
-    sorted_candidates = sorted(
-        candidates.values(),
-        key=lambda item: (
-            item[0],
-            tuple(item[1][logical] for logical in logical_qubits),
-        ),
-    )
-    preserved_initial_keys = list(dict.fromkeys(preserved_initial_keys))
-    finalists_by_key = {
-        key: candidates[key]
-        for key in preserved_initial_keys
-    }
-    finalist_limit = max(route_candidates, len(finalists_by_key))
-    for score, placement in sorted_candidates:
-        key = tuple(placement[logical] for logical in logical_qubits)
-        if key not in finalists_by_key and len(finalists_by_key) < finalist_limit:
-            finalists_by_key[key] = (score, placement)
-    finalists = list(finalists_by_key.values())
     routed_finalists = [
         (
             route_circuit(circuit, topology, placement),
             score,
             placement,
         )
-        for score, placement in finalists
+        for score, placement in candidates.values()
     ]
-    return min(
+    best_candidate = min(
         routed_finalists,
         key=lambda item: (
             item[0].expected_error_rate,
@@ -566,7 +619,8 @@ def heuristic_map(
             item[1][1],
             tuple(item[2][logical] for logical in logical_qubits),
         ),
-    )[2]
+    )
+    return best_candidate[2]
 
 
 if __name__ == "__main__":
@@ -574,10 +628,10 @@ if __name__ == "__main__":
     from src.topology_graph.loader import load_topology_graph
 
     circuit = load_circuit_graph(
-        r"E:\Cesar\Python\Grafos\projeto-parte2\datasets\interaction_order\algorithms\bmw_quark_cardinality\bmw_quark_cardinality_6qubits_ordered_interactions.csv"
+        r"E:\Cesar\Python\Grafos\projeto-parte2\datasets\interaction_order\algorithms\draper_qft_adder\draper_qft_adder_20qubits_ordered_interactions.csv"
     )
     topology = load_topology_graph(
-        r"E:\Cesar\Python\Grafos\projeto-parte2\datasets\topologies\grid\grid_10x10_100qubits_weighted_edges.csv"
+        r"E:\Cesar\Python\Grafos\projeto-parte2\datasets\topologies\grid\grid_5x5_25qubits_weighted_edges.csv"
     )
 
     iteractions = math.factorial(topology.qubit_count) // math.factorial(
@@ -586,19 +640,21 @@ if __name__ == "__main__":
     print(f"Total solutions: {iteractions}")
 
     start_time = time.time()
-    if iteractions < 10_000_000:
+    if iteractions < 1_000_000:
         print("CALCULATING OPTIMAL SOLUTION")
         placement = optimal_map(circuit, topology)
     else:
         print("CALCULATING HEURISTIC SOLUTION")
-        placement = heuristic_map(circuit, topology, 1000, 45, route_candidates=1000)
+        placement = heuristic_map(
+            circuit,
+            topology,
+            initial_candidates=1000,
+            seed=42,
+        )
 
     print(f"Mapping time: {time.time() - start_time:2f}s")
 
     routing_result = route_circuit(circuit, topology, placement)
-    print("Routed SWAPs:", routing_result)
+    print("Routing result:", routing_result)
 
-    print(
-        "Estimated error and distance:",
-        estimate_placement_cost(circuit, topology, routing_result.final_mapping),
-    )
+    print("Expected routed error:", routing_result.expected_error_rate)

@@ -8,6 +8,11 @@ are stored under `datasets/algorithms/<benchmark>/`, random circuits under
 `datasets/algorithms/random/`, and hardware maps under
 `datasets/topologies/<topology>/`.
 
+Synthetic two-qubit gate error rates are generated from a log-normal
+distribution with a 0.15% median and are clipped to 0.02%–1%. These per-gate
+rates are combined across circuit operations, so the estimated execution error
+still increases with circuit size.
+
 Run all generators from the project root:
 
 ```powershell

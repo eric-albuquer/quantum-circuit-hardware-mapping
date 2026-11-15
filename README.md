@@ -35,7 +35,7 @@ multi-qubit routing problem.
 | Model | Vertices | Edges | Classification and weights |
 | --- | --- | --- | --- |
 | Circuit interaction graph (one graph per circuit) | Logical qubits, identified by their QASM indices | A pair is an edge when the pair has at least one two-qubit instruction; the CSV also records pairs with zero interactions | Simple, loop-free, undirected, weighted, and not necessarily connected. The integer weight is the number of two-qubit instructions for the pair; it is nonnegative. Gate direction, type, and temporal order are aggregated away. |
-| Hardware coupling graph (one graph per topology) | Physical qubits in a Qiskit `CouplingMap` | Directed arcs for allowed source-to-target couplings | Simple directed, weighted, static, and currently connected for the generated topologies. The JSON/CSV stores synthetic positive gate-error rates and derived fidelities; reciprocal arcs may have different synthetic values. No negative weights are present. |
+| Hardware coupling graph (one graph per topology) | Physical qubits in a Qiskit `CouplingMap` | Directed arcs for allowed source-to-target couplings | Simple directed, weighted, static, and currently connected for the generated topologies. The JSON/CSV stores synthetic positive gate-error rates (0.15% median, clipped to 0.02%–1%) and derived fidelities; reciprocal arcs may have different synthetic values. No negative weights are present. |
 
 The circuit and hardware graph have different vertex domains: **logical**
 qubits versus **physical** qubits. They must not be treated as one graph or
@@ -67,30 +67,33 @@ algorithm as the submitted implementation:
    arc costs). An MST is a minimum-cost connected backbone, not a routing
    solution: omitted hardware edges still exist, and routing must not be
    restricted to the tree unless that is a separate experiment.
-5. **Placement and routing:** `src/mapping.py` combines a degree/frequency
-   baseline with starts guided by the most frequent logical interaction pair
-   and circuit locality, as well as reproducible independent random starts.
-   Restarts are split evenly across the four strategies (250 each with 1,000
-   restarts); any remainder goes in degree, frequent-pair, locality, and
-   random order. Guided starts grow the placement by prioritizing interactions
-   with already placed qubits; the pair-based start begins on a low-error
-   physical link. Each criterion has its own function:
-   `_degree_initial_placement`, `_interaction_pair_initial_placement`,
-   `_locality_initial_placement`, and `_random_initial_placement`. The four
-   baseline candidates are preserved without local
-   improvement and always considered for final routing. Other starts receive
-   local improvement using logical-qubit swaps and moves onto unused physical
-   qubits. Its placement proxy is the sum of each circuit pair's interaction
-   count times its shortest undirected hardware hop distance. The directed
-   coupling arcs are projected to undirected links for this experiment;
+5. **Placement and routing:** `src/mapping.py` splits initial placements
+   evenly between degree-based and most-frequent-interaction-pair starts,
+   with a fixed seed for reproducibility. The unperturbed start from each
+   strategy is preserved without local improvement and always considered for
+   final routing. Other starts receive local improvement using logical-qubit
+   swaps and moves onto unused physical qubits. Hill climbing runs across
+   worker processes by default; pass `max_workers=1` to disable multiprocessing.
+   `_improve_placement` evaluates only the cost deltas of interactions
+   incident to the qubits affected by each move, rather than rescoring the
+   entire circuit. Its placement proxy is the sum of each circuit pair's
+   interaction count times its shortest undirected hardware hop distance.
+   The directed coupling arcs are projected to undirected links for this experiment;
    direction-dependent gate feasibility and error are not modeled by this
    proxy.
 
-   The mapper routes the best proxy candidates through the ordered circuit
-   interactions, updates the logical-to-physical placement after each SWAP,
-   and returns the candidate with the fewest routed SWAPs (using proxy cost as
-   a tie-breaker). `route_circuit` exposes the SWAP count, final placement,
-   and an `expected_error_rate`; `estimate_placement_cost` exposes the proxy.
+   `heuristic_map` accepts `initial_candidates` (the total number of generated
+   starts) and `max_workers` to control hill-climbing parallelism. It routes
+   every distinct placement produced by hill climbing, in addition to the
+   preserved unperturbed starts. The mapper routes each placement through the
+   ordered circuit interactions, updates the logical-to-physical placement
+   after each SWAP, and selects the candidate with the lowest routed error
+   rate, using SWAP count and proxy cost as tie-breakers.
+   On Windows, calls from scripts should be protected by
+   `if __name__ == "__main__":` when using the default multiprocessing mode.
+   `route_circuit` exposes the SWAP count, final placement, and an
+   `expected_error_rate`. `optimal_map` exhaustively compares placements using
+   that routed error (then SWAP count).
    The error estimate treats each SWAP as three two-qubit gates and each
    circuit interaction as one two-qubit gate, using the mean error rate of
    available directed arcs for an undirected link. It combines independent
