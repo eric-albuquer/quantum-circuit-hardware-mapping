@@ -125,9 +125,6 @@ def compute_max_flow_min_cost(
             if d > dist[u]:
                 continue
 
-            if u == sink:
-                break
-
             for v, (cap, cost) in residual_graph[u].items():
                 if cap > 0:
                     reduced_cost = cost + potentials[u] - potentials[v]
@@ -143,24 +140,16 @@ def compute_max_flow_min_cost(
             if dist[node] < float("inf"):
                 potentials[node] += dist[node]
 
-        push_flow = float("inf")
-        curr = sink
-        while curr != source:
-            p = parent[curr]
-            cap = residual_graph[p][curr][0]
-            push_flow = min(push_flow, cap)
-            curr = p
-
-        max_flow += push_flow
+        max_flow += 1
         curr = sink
         while curr != source:
             p = parent[curr]
             edge_cost = residual_graph[p][curr][1]
 
-            residual_graph[p][curr][0] -= push_flow
-            residual_graph[curr][p][0] += push_flow
+            residual_graph[p][curr][0] -= 1
+            residual_graph[curr][p][0] += 1
 
-            min_cost += push_flow * edge_cost
+            min_cost += edge_cost
             curr = p
 
     return max_flow, min_cost, residual_graph
