@@ -1,7 +1,8 @@
 import heapq
 
 from src.circuit_graph.graph import CircuitGraph
-from src.mapping import _improve_placement, _validate_mapping
+from src.mapping_common import hill_climb_placement as _hill_climb_placement
+from src.mapping_common import validate_mapping
 from src.topology_graph.graph import TopologyGraph
 
 SHALLOW_WEIGHTS = (0.2, 0.2, 0.6)
@@ -91,9 +92,8 @@ def hill_climb_placement(
     topology: TopologyGraph,
     mapping: dict[int, int],
 ) -> tuple[dict[int, int], tuple[float, int]]:
-    """Improve an initial placement with mapping.py's local-search objective."""
-    _validate_mapping(circuit, topology, mapping)
-    return _improve_placement(circuit, topology, mapping.copy())
+    """Improve placement by evaluating the complete routed error and SWAP count."""
+    return _hill_climb_placement(circuit, topology, mapping)
 
 
 def compute_max_flux_min_cost(
@@ -134,7 +134,6 @@ def compute_max_flux_min_cost(
         dist[source] = 0.0
         pq = [(0.0, source)]
 
-        # Dijkstra com custos reduzidos
         while pq:
             d, u = heapq.heappop(pq)
             
@@ -149,16 +148,13 @@ def compute_max_flux_min_cost(
                         parent[v] = u
                         heapq.heappush(pq, (dist[v], v))
 
-        # Encerra se não houver mais caminho até o destino
         if dist[sink] == float('inf'):
             break
 
-        # 3. Atualiza potenciais para manter os pesos >= 0 na próxima iteração
         for node in reverse_flux_graph:
             if dist[node] < float('inf'):
                 potentials[node] += dist[node]
 
-        # 4. Encontra o gargalo no caminho
         push_flow = float('inf')
         curr = sink
         while curr != source:
@@ -167,7 +163,6 @@ def compute_max_flux_min_cost(
             push_flow = min(push_flow, cap)
             curr = p
 
-        # 5. Atualiza capacidades residuais e soma o custo
         max_flow += push_flow
         curr = sink
         while curr != source:
@@ -278,7 +273,7 @@ def main() -> None:
     )
     print(f"Initial mapping: {initial_mapping}")
     print(f"Hill-climbing mapping: {mapped}")
-    print(f"Hill-climbing proxy cost: {placement_cost}")
+    print(f"Hill-climbing routed cost (error, SWAPs): {placement_cost}")
 
 if __name__ == "__main__":
     main()

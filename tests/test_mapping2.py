@@ -2,6 +2,7 @@ import math
 import unittest
 
 from src.circuit_graph.graph import CircuitEdge, CircuitGraph
+from src.mapping_common import route_circuit
 from src.mapping2 import hill_climb_placement, map2, mapping_cost_weights
 from src.topology_graph.graph import TopologyEdge, TopologyGraph
 
@@ -38,6 +39,7 @@ class Mapping2Tests(unittest.TestCase):
         )
         circuit = make_circuit()
 
+        self.assertEqual(circuit.interaction_pairs, [(0, 1, 1)])
         self.assertEqual(circuit.max_qubit_degree, 1)
         self.assertEqual(circuit.max_qubit_interactions, 1)
         self.assertEqual(topology.qubit_degree, {0: 1, 1: 2, 2: 1})
@@ -122,6 +124,11 @@ class Mapping2Tests(unittest.TestCase):
         self.assertEqual(set(improved_mapping), {0, 1})
         self.assertEqual(len(set(improved_mapping.values())), 2)
         self.assertLess(improved_cost[1], 3)
+        routed_result = route_circuit(circuit, topology, improved_mapping)
+        self.assertEqual(
+            improved_cost,
+            (routed_result.expected_error_rate, routed_result.swap_count),
+        )
 
 
 if __name__ == "__main__":

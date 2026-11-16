@@ -69,6 +69,12 @@ class CircuitGraph:
 
         self.max_qubit_degree = max(self.qubit_degree, default=0)
         self.max_qubit_interactions = max(self.qubit_interactions, default=0)
+        self.interaction_pairs = [
+            (logical_1, logical_2, self.iteraction_matrix[logical_1][logical_2])
+            for logical_1 in range(self.qubit_count)
+            for logical_2 in range(logical_1 + 1, self.qubit_count)
+            if self.iteraction_matrix[logical_1][logical_2] > 0
+        ]
         self.two_qubit_interaction_count = len(edges)
         self.dependency_depth = max(dependency_depths.values(), default=0)
         self.depth_pressure = (

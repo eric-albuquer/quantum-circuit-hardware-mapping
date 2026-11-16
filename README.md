@@ -72,9 +72,11 @@ algorithm as the submitted implementation:
 
 ### Placement and routing model
 
-The implementation is in `src/mapping.py`; the graph preprocessing is in
-`src/circuit_graph/graph.py` and `src/topology_graph/graph.py`. This section
-describes the behavior of the current code, including its approximations.
+The implementation is in `src/mapping.py`; graph preprocessing is in
+`src/circuit_graph/graph.py` and `src/topology_graph/graph.py`. Shared mapping
+validation, routing, and routed-cost hill climbing are implemented in
+`src/mapping_common.py`. This section describes the behavior of the current
+code, including its approximations.
 
 #### Flux-graph placement cost (`src/mapping2.py`)
 
@@ -125,6 +127,8 @@ weighted hardware-edge CSV:
    operation on either operand. It captures per-qubit ordering constraints,
    but the current router consumes `fpga` directly rather than scheduling from
    this dependency graph.
+4. `interaction_pairs`, `qubit_degree`, and `qubit_interactions` are cached
+   summaries used by placement initialization and mapping algorithms.
 
 `TopologyGraph` first stores the input arcs in an adjacency dictionary. For
 each ordered pair of physical qubits it then precomputes:
@@ -134,6 +138,9 @@ each ordered pair of physical qubits it then precomputes:
 - `error_matrix[a][b]`: the cumulative error estimate along that selected
   path, not merely the error of the direct edge. Unreachable pairs retain an
   empty path and infinite error.
+- `qubit_degree`, `mean_distance`, `mean_adjacent_error`,
+  `mean_path_error`, and their normalization references are computed once and
+  reused by placement initialization and the flux-cost model.
 
 For a physical pair `{a,b}`, the undirected link error used by this experiment
 is the arithmetic mean of the available directed arc error rates:
@@ -272,40 +279,15 @@ minimizes the modeled routed error first and minimizes SWAP count only among
 placements with the same routed error. It does not minimize SWAP count as the
 primary objective.
 
-The heuristic does not search the full set `M`. It locally minimizes a
-placement proxy computed from the symmetric circuit interaction counts
-\(C_{ij}\) and the precomputed risk-optimal path between the currently assigned
-physical qubits. Let \(e_{ab}\) be the cumulative path error and \(d_{ab}\)
-its hop count. The proxy objective is:
-
-$$
-E_{\mathrm{proxy}}(m)
-=1-\prod_{0\le i<j<k}
-\left(1-e_{m(i),m(j)}\right)^{C_{ij}}, \qquad
-H_{\mathrm{proxy}}(m)
-=\sum_{0\le i<j<k} C_{ij}\,d_{m(i),m(j)}.
-$$
-
-The minimization is lexicographic: reduce proxy error first, then weighted
-path length. Equivalently, when all `e[a][b] < 1`, minimizing proxy error is
-the same as minimizing the additive negative-log objective:
-
-$$
-L_{\mathrm{proxy}}(m)
-=-\sum_{0\le i<j<k}C_{ij}
-\ln\!\left(1-e_{m(i),m(j)}\right), \qquad
-E_{\mathrm{proxy}}(m)
-=1-\exp\!\left(-L_{\mathrm{proxy}}(m)\right).
-$$
-
-The implementation uses this log form for numerical stability and handles
-certain-error (\(e_{ab}=1\)) pairs separately. For any one start, it repeatedly
-applies the single best improving logical swap or move to an unused physical
-qubit until no such move decreases
-\((E_{\mathrm{proxy}},H_{\mathrm{proxy}})\). This is a local
-minimum, not a proof of global optimality. The heuristic routes the distinct
-finalists and selects among them using `(E_route, S_route, E_proxy, H_proxy,
-physical-index tuple)`.
+The heuristic does not search the full set `M`. For every starting placement,
+it locally minimizes the same routed objective as the exact search:
+\((E_{\mathrm{route}},S_{\mathrm{route}})\). Each swap or move neighbor is
+passed through `route_circuit` in circuit order, including dynamic SWAPs and
+the resulting changes to the logical-to-physical mapping. The best
+strictly-improving routed neighbor is accepted; ties stop the local search.
+This is a local minimum, not a proof of global optimality. The final heuristic
+answer is selected from routed hill-climb results and preserved starts using
+`(E_route, S_route, physical-index tuple)`.
 
 #### Ordered routing and the physical error model
 
@@ -449,7 +431,7 @@ m_{t+1}
  m'\in\{m_t\}\cup\mathcal{N}_{\mathrm{swap}}(m_t)\cup
  \mathcal{N}_{\mathrm{move}}(m_t)
 }{\operatorname{arg\,min}_{\mathrm{lex}}}
-\left(E_{\mathrm{proxy}}(m'),H_{\mathrm{proxy}}(m')\right).
+\left(E_{\mathrm{route}}(m'),S_{\mathrm{route}}(m')\right).
 $$
 
 If the minimizer is \(m_t\), the search stops; ties with the current placement
@@ -461,43 +443,13 @@ all placements and not a guarantee of a global optimum. Its result depends
 on the starting candidate, which is why the implementation uses random,
 degree-based, and most-frequent-pair starts.
 
-Although the number of candidate moves is quadratic in the logical-qubit
-count plus the logical-to-unused-physical move count, the implementation
-updates the proxy using only interaction pairs incident to the moved logical
-qubits. This avoids recomputing the full interaction objective for every
-neighbor. The placement space is finite and only strictly improving moves
-are accepted, so each hill-climbing run terminates at a neighborhood-local
-minimum.
-
-For a logical pair \((i,j)\) with \(C_{ij}\) interactions mapped to physical
-pair \((a,b)\), let \(e_{ab}\) be `error_matrix[a][b]` and
-\(d_{ab}=\operatorname{len}(\texttt{path\_matrix}[a][b])-1\). The proxy is:
-
-$$
-E_{\mathrm{proxy}}(m)
-=1-\prod_{0\le i<j<k}
-\left(1-e_{m(i),m(j)}\right)^{C_{ij}},
-\qquad
-H_{\mathrm{proxy}}(m)
-=\sum_{0\le i<j<k}C_{ij}\,d_{m(i),m(j)}.
-$$
-
-If any interacting pair has path error \(1\), its proxy error is \(1\). The
-implementation uses sums of logarithms for numerical stability and tracks
-certain-error pairs separately. For each trial move it recomputes only
-interactions incident to the moved logical qubits, rather than rescoring the
-whole interaction matrix. The local search terminates at a local minimum with
-respect to the two neighborhoods above; other placements may still have lower
-cost.
-
-The proxy treats every interaction between a given logical pair as if it used
-the same precomputed path/error and does not model the dynamic SWAPs that may
-be inserted when that pair is actually routed. To choose the final heuristic
-answer, the implementation deduplicates locally improved placements while
-retaining the strategy starts, routes each distinct finalist in circuit
-order, and ranks them by actual routed error, SWAP count, proxy error, proxy
-path length, and physical-index tuple. Thus the proxy guides placement search;
-the finalist ranking uses the current ordered routing model.
+Each candidate evaluation routes the full ordered operation sequence, so the
+hill-climb objective accounts for dynamic SWAPs and their physical errors.
+Scores are cached for repeated visits to the same placement. The placement
+space is finite and only strictly improving moves are accepted, so each
+hill-climbing run terminates at a neighborhood-local minimum. This exact
+routed evaluation is more expensive than scoring an interaction-count proxy;
+parallel execution across starting candidates remains available.
 
 Hill-climb starts are processed in parallel by default, using up to the
 available CPU count; `max_workers=1` disables multiprocessing. This parallelism
