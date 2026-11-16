@@ -78,30 +78,173 @@ validation, routing, and routed-cost hill climbing are implemented in
 `src/mapping_common.py`. This section describes the behavior of the current
 code, including its approximations.
 
-#### Maximum-flow minimum-cost mapping (`src/mapping_max_flow_min_cost.py`)
+#### Maximum-flow minimum-cost mapping (`src/mapping_flow.py`)
 
-`build_min_cost_max_flow_graph` builds a logical-to-physical flow graph, which
-`compute_max_flow_min_cost` solves to assign logical qubits to physical qubits
-with maximum flow and minimum cost. Its degree, mean-distance,
-adjacent-error, and mean-path-error inputs are normalized to `[0, 1]` before
-they are combined. `TopologyGraph` precomputes hardware-only metrics, while
-`CircuitGraph` precomputes the dependency-graph depth and interaction counts.
-Unreachable physical pairs receive a finite worst-case distance and path-error
-penalty; the adjacent-error ratio is capped at `1` so the final cost remains
-normalized.
+This approach produces an initial placement of circuit logical qubits onto
+hardware physical qubits. Its goal is to assign every logical qubit to a
+different physical qubit while preferring placements that fit the circuit's
+interaction requirements to the hardware's connectivity, distances, and
+error profile. It treats this as a **minimum-cost injective assignment**:
+every logical qubit must be assigned exactly once, and no physical qubit may
+be assigned more than once.
 
-The logical-qubit importance is
-`I_q = 0.5 * G_q / G_max + 0.5 * N_q / N_max`. The final edge cost is
-`C(q,Q) = w1 * P_degree + w2 * P_distance + w3 * P_error`, with the initial
-noise weights `(0.2, 0.2, 0.6)` for shallow circuits and topology weights
-`(0.45, 0.35, 0.2)` for deep circuits. The weights interpolate linearly using
-the dependency-depth pressure
-`(depth - 1) / (two_qubit_interactions - 1)`, defined as zero for circuits with
-at most one two-qubit interaction. Thus fully parallel interactions favor the
-shallow profile, while a fully serial dependency chain favors the deep profile.
-The error penalty combines adjacent error relative to the chip-wide mean link
-error and mean cumulative path error relative to the worst physical node, with
-`alpha = 0.7` and `beta = 0.3`.
+The flow network encodes those constraints directly. It has a source `s`, one
+node `l_q` for each logical qubit, one node `t_Q` for each physical qubit, and
+a sink `t`:
+
+```text
+s --(capacity 1, cost 0)--> l_q
+l_q --(capacity 1, placement cost C(q,Q))--> t_Q
+t_Q --(capacity 1, cost 0)--> t
+```
+
+There is a candidate edge from every logical-qubit node to every physical-qubit
+node. The capacity of one on `s -> l_q` requires each logical qubit to
+contribute at most one unit of flow. The capacity of one on `t_Q -> t` ensures
+that at most one logical qubit uses a physical qubit. Therefore, a flow of
+value `k` (the number of logical qubits) is exactly a complete injective
+placement. If the maximum flow is smaller than `k`, a complete assignment
+could not be produced; the CLI raises an error rather than returning a partial
+mapping.
+
+Among complete assignments, the algorithm minimizes the sum of the selected
+logical-to-physical edge costs:
+
+$$
+\min_{x_{qQ}}\ \sum_{q\in\mathcal{L}}\sum_{Q\in\mathcal{P}} C(q,Q)x_{qQ}
+$$
+
+subject to
+
+$$
+\sum_{Q\in\mathcal{P}} x_{qQ}=1 \quad(q\in\mathcal{L}),\qquad
+\sum_{q\in\mathcal{L}} x_{qQ}\leq1 \quad(Q\in\mathcal{P}),\qquad
+x_{qQ}\in\{0,1\}.
+$$
+
+Here, `L` and `P` denote the logical and physical qubit sets, and `x_qQ = 1`
+means logical qubit `q` is assigned to physical qubit `Q`. The flow solution
+is obtained by successive shortest augmenting paths in a residual graph.
+Each original edge has unit capacity; reverse residual edges allow earlier
+assignments to be revised when a later augmentation yields a lower total cost.
+The implementation uses Dijkstra's algorithm with vertex potentials to find
+shortest paths by reduced cost, updates the residual capacities along each
+augmenting path, and accumulates the original edge costs. Once no source-to-sink
+path remains, it returns the maximum flow, its minimum cost, and the residual
+graph. The saturated logical-to-physical edges identify the assignment.
+
+The edge cost `C(q,Q)` is a placement heuristic, not the measured routed
+execution cost. For each logical qubit, `CircuitGraph` computes:
+
+- `G_q`, its interaction degree: the number of distinct logical partners.
+- `N_q`, its interaction count: the number of two-qubit operations involving
+  it, counting repeated interactions.
+
+Define the capped normalization
+
+$$
+R(x,M)=
+\begin{cases}
+\min(1,x/M), & M>0,\\
+0, & M=0.
+\end{cases}
+$$
+
+For logical qubit `q`, the implementation defines its importance as
+
+$$
+I_q=
+\frac{1}{2}R(G_q,G_{\max})+
+\frac{1}{2}R(N_q,N_{\max}).
+$$
+
+This gives more influential logical qubits greater weight in distance and
+error penalties. For a logical qubit `q` and a physical qubit `Q`, let
+`d_Q` be the physical qubit's degree, \(\bar{d}_Q\) its mean distance to the
+other physical qubits, \(\bar{p}_Q\) its mean adjacent-link error, and
+\(\bar{e}_Q\) its mean cumulative path error. Let \(G_{\max}\) be the maximum
+logical interaction degree, \(\bar{d}_{\max}\) the maximum physical mean
+distance, \(\bar{e}_{\max}\) the maximum physical mean path error, and
+\(\bar{p}_{\mathrm{global}}\) the mean error over physical links.
+
+The three placement penalties are
+
+$$
+\begin{aligned}
+P_{\mathrm{degree}}(q,Q)
+&=R(\max(0,G_q-d_Q),G_{\max}),\\
+P_{\mathrm{distance}}(q,Q)
+&=I_q\,R(\bar{d}_Q,\bar{d}_{max}),\\
+P_{\mathrm{error}}(q,Q)
+&=I_q\left[
+0.7\,R(\bar{p}_Q,\bar{p}_{global})
++0.3\,R(\bar{e}_Q,\bar{e}_{max})
+\right].
+\end{aligned}
+$$
+
+The degree penalty discourages placing a logical qubit with many interaction
+partners on a physical qubit with insufficient degree. The distance penalty
+favors physical qubits that are, on average, closer to the rest of the
+hardware. The error penalty favors physical qubits with lower average
+adjacent-link and cumulative path errors. Each node-level physical metric is
+precomputed by `TopologyGraph` and reused when constructing the flow network.
+Unreachable pairs contribute a finite worst-case penalty to mean distance and
+mean path error; the candidate assignment edges are still present in the
+network.
+
+The final cost combines these penalties:
+
+$$
+C(q,Q)=
+w_{\mathrm{degree}}P_{\mathrm{degree}}(q,Q)
++w_{\mathrm{distance}}P_{\mathrm{distance}}(q,Q)
++w_{\mathrm{error}}P_{\mathrm{error}}(q,Q).
+$$
+
+The weights adapt to the circuit's dependency depth. If `D` is the maximum
+dependency depth and `M` is the number of two-qubit interactions, the depth
+pressure is
+
+$$
+\rho=
+\begin{cases}
+(D-1)/(M-1), & M>1,\\
+0, & M\leq1.
+\end{cases}
+$$
+
+Starting from the shallow-circuit profile `(0.2, 0.2, 0.6)` and the
+deep-circuit profile `(0.45, 0.35, 0.2)`, each weight is linearly interpolated:
+
+$$
+\mathbf{w}=(1-\rho)(0.2,0.2,0.6)+\rho(0.45,0.35,0.2).
+$$
+
+Thus, circuits with mostly parallel interactions emphasize error cost, while
+more serial dependency structures gradually place more weight on degree and
+distance. The pressure is computed from the dependency graph in operation
+order; it is not an estimate of hardware execution time.
+
+The flow assignment solves the modeled placement objective, **not the full
+quantum-circuit routing problem**. The cost is built from per-qubit summaries;
+it does not directly optimize pairwise adjacency for every interacting pair,
+the number of inserted SWAP gates, or the final routed error. After extracting
+and validating the complete initial mapping, `main` passes it to
+`hill_climb_placement`, which evaluates actual ordered routing and attempts to
+improve the initial placement using routed error and SWAP count. That local
+search can improve the flow result, but it does not guarantee a globally
+optimal routed placement.
+
+Run this implementation from the repository root with:
+
+```powershell
+python -m src.mapping_flow
+```
+
+The CLI accepts `--circuit` and `--topology` CSV paths. It prints the initial
+flow assignment, the hill-climbing assignment, and the latter's routed
+`(error, SWAP count)` cost.
 
 #### Inputs and precomputed data
 
@@ -171,14 +314,14 @@ The all-pairs path preprocessing uses Dijkstra's algorithm. For a link error
 \(p_e<1\), the edge weight is transformed to additive negative log-success:
 
 $$
-q(p_e)=-\ln(1-p_e), \qquad
-Q(\pi)=\sum_{e\in\pi}q(p_e),
-$$
-$$
+\begin{aligned}
+q(p_e) &= -\ln(1-p_e), &
+Q(\pi) &= \sum_{e\in\pi}q(p_e),\\
 P_{\mathrm{success}}(\pi)
-=\prod_{e\in\pi}(1-p_e)
-=\exp\!\left(-Q(\pi)\right), \qquad
-E(\pi)=1-P_{\mathrm{success}}(\pi).
+&= \prod_{e\in\pi}(1-p_e)
+= \exp\!\left(-Q(\pi)\right), &
+E(\pi) &= 1-P_{\mathrm{success}}(\pi).
+\end{aligned}
 $$
 
 Minimizing \(Q(\pi)\) is equivalent to maximizing the product of link success
@@ -268,7 +411,7 @@ The exact placement search solves this lexicographic minimization:
 
 $$
 m^\star =
-\underset{m\in\mathcal{M}}{\operatorname{arg\,min}_{\mathrm{lex}}}
+\underset{m\in\mathcal{M}}{\mathrm{arg\,min}_{\mathrm{lex}}}
 \left(
 E_{\mathrm{route}}(m),
 S_{\mathrm{route}}(m),
@@ -404,7 +547,7 @@ Formally, for a current injective placement \(m\), the swap neighborhood is
 
 $$
 \mathcal{N}_{\mathrm{swap}}(m)
-=\{m^{i\leftrightarrow j}:0\le i<j<k\},\qquad
+=\left\{m^{i\leftrightarrow j}:0\le i<j<k\right\},\qquad
 m^{i\leftrightarrow j}(i)=m(j),\quad
 m^{i\leftrightarrow j}(j)=m(i),
 $$
@@ -414,7 +557,7 @@ unused-site move neighborhood is
 
 $$
 \mathcal{N}_{\mathrm{move}}(m)
-=\{m^{i\to p}:0\le i<k,\ p\in\mathcal{P}\setminus m(\mathcal{L})\},
+=\left\{m^{i\to p}:0\le i<k,\ p\in\mathcal{P}\setminus m(\mathcal{L})\right\},
 \qquad
 m^{i\to p}(i)=p.
 $$
@@ -432,7 +575,7 @@ m_{t+1}
 =\underset{
  m'\in\{m_t\}\cup\mathcal{N}_{\mathrm{swap}}(m_t)\cup
  \mathcal{N}_{\mathrm{move}}(m_t)
-}{\operatorname{arg\,min}_{\mathrm{lex}}}
+}{\mathrm{arg\,min}_{\mathrm{lex}}}
 \left(E_{\mathrm{route}}(m'),S_{\mathrm{route}}(m')\right).
 $$
 
