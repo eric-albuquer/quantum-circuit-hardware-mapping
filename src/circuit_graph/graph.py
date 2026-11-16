@@ -30,6 +30,7 @@ class CircuitGraph:
         self.fpga = edges
 
         self.dependency_graph: dict[CircuitVertice, set[CircuitVertice]] = {}
+        dependency_depths: dict[CircuitVertice, int] = {}
         last_qubit_vertice = {}
 
         for e in edges:
@@ -50,5 +51,28 @@ class CircuitGraph:
                 v2 = last_qubit_vertice[q2]
                 self.dependency_graph[v].add(v2)
 
+            dependency_depths[v] = 1 + max(
+                (
+                    dependency_depths[predecessor]
+                    for predecessor in self.dependency_graph[v]
+                ),
+                default=0,
+            )
             last_qubit_vertice[q1] = v
-            last_qubit_vertice[q2] = v    
+            last_qubit_vertice[q2] = v
+
+        self.qubit_degree = []
+        self.qubit_interactions = []
+        for row in self.iteraction_matrix:
+            self.qubit_interactions.append(sum(row))
+            self.qubit_degree.append(sum(x > 0 for x in row))
+
+        self.max_qubit_degree = max(self.qubit_degree, default=0)
+        self.max_qubit_interactions = max(self.qubit_interactions, default=0)
+        self.two_qubit_interaction_count = len(edges)
+        self.dependency_depth = max(dependency_depths.values(), default=0)
+        self.depth_pressure = (
+            (self.dependency_depth - 1) / (self.two_qubit_interaction_count - 1)
+            if self.two_qubit_interaction_count > 1
+            else 0.0
+        )

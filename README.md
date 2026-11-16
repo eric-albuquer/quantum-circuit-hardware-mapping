@@ -76,6 +76,29 @@ The implementation is in `src/mapping.py`; the graph preprocessing is in
 `src/circuit_graph/graph.py` and `src/topology_graph/graph.py`. This section
 describes the behavior of the current code, including its approximations.
 
+#### Flux-graph placement cost (`src/mapping2.py`)
+
+`map2` builds a logical-to-physical flow graph. Its degree, mean-distance,
+adjacent-error, and mean-path-error inputs are normalized to `[0, 1]` before
+they are combined. `TopologyGraph` precomputes hardware-only metrics, while
+`CircuitGraph` precomputes the dependency-graph depth and interaction counts.
+Unreachable physical pairs receive a finite worst-case distance and path-error
+penalty; the adjacent-error ratio is capped at `1` so the final cost remains
+normalized.
+
+The logical-qubit importance is
+`I_q = 0.5 * G_q / G_max + 0.5 * N_q / N_max`. The final edge cost is
+`C(q,Q) = w1 * P_degree + w2 * P_distance + w3 * P_error`, with the initial
+noise weights `(0.2, 0.2, 0.6)` for shallow circuits and topology weights
+`(0.45, 0.35, 0.2)` for deep circuits. The weights interpolate linearly using
+the dependency-depth pressure
+`(depth - 1) / (two_qubit_interactions - 1)`, defined as zero for circuits with
+at most one two-qubit interaction. Thus fully parallel interactions favor the
+shallow profile, while a fully serial dependency chain favors the deep profile.
+The error penalty combines adjacent error relative to the chip-wide mean link
+error and mean cumulative path error relative to the worst physical node, with
+`alpha = 0.7` and `beta = 0.3`.
+
 #### Inputs and precomputed data
 
 The mapper consumes an ordered CSV of two-qubit circuit operations and a

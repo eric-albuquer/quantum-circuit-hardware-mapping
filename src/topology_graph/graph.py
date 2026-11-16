@@ -71,6 +71,77 @@ class TopologyGraph:
                         (candidate[0], candidate[1], new_q),
                     )
 
+        physical_neighbors = {
+            qubit: {
+                neighbor
+                for source, neighbors in self.graph.items()
+                for neighbor in neighbors
+                if neighbor != qubit and (source == qubit or neighbor == qubit)
+            }
+            for qubit in self.graph
+        }
+        self.qubit_degree = {
+            qubit: len(neighbors)
+            for qubit, neighbors in physical_neighbors.items()
+        }
+        self.mean_adjacent_error = {
+            qubit: (
+                sum(
+                    self.link_error_rate(qubit, neighbor)
+                    for neighbor in physical_neighbors[qubit]
+                )
+                / len(physical_neighbors[qubit])
+                if physical_neighbors[qubit]
+                else 0.0
+            )
+            for qubit in self.graph
+        }
+        physical_links = {
+            (min(source, target), max(source, target))
+            for source, neighbors in self.graph.items()
+            for target in neighbors
+            if source != target
+        }
+        self.global_adjacent_error = (
+            sum(
+                self.link_error_rate(source, target)
+                for source, target in physical_links
+            )
+            / len(physical_links)
+            if physical_links
+            else 0.0
+        )
+        self.mean_distance = {
+            source: sum(
+                len(path) - 1 if path else self.qubit_count
+                for target, path in enumerate(self.path_matrix[source])
+                if target != source
+            )
+            / (self.qubit_count - 1)
+            if self.qubit_count > 1
+            else 0.0
+            for source in self.graph
+        }
+        self.mean_path_error = {
+            source: (
+                sum(
+                    (
+                        self.error_matrix[source][target]
+                        if self.path_matrix[source][target]
+                        else 1.0
+                    )
+                    for target in range(self.qubit_count)
+                    if target != source
+                )
+                / (self.qubit_count - 1)
+                if self.qubit_count > 1
+                else 0.0
+            )
+            for source in self.graph
+        }
+        self.max_mean_distance = max(self.mean_distance.values(), default=0.0)
+        self.max_mean_path_error = max(self.mean_path_error.values(), default=0.0)
+
     def link_error_rate(self, source: int, target: int) -> float:
         rates = [
             rate
