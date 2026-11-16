@@ -78,9 +78,11 @@ validation, routing, and routed-cost hill climbing are implemented in
 `src/mapping_common.py`. This section describes the behavior of the current
 code, including its approximations.
 
-#### Flux-graph placement cost (`src/mapping2.py`)
+#### Maximum-flow minimum-cost mapping (`src/mapping_max_flow_min_cost.py`)
 
-`map2` builds a logical-to-physical flow graph. Its degree, mean-distance,
+`build_min_cost_max_flow_graph` builds a logical-to-physical flow graph, which
+`compute_max_flow_min_cost` solves to assign logical qubits to physical qubits
+with maximum flow and minimum cost. Its degree, mean-distance,
 adjacent-error, and mean-path-error inputs are normalized to `[0, 1]` before
 they are combined. `TopologyGraph` precomputes hardware-only metrics, while
 `CircuitGraph` precomputes the dependency-graph depth and interaction counts.

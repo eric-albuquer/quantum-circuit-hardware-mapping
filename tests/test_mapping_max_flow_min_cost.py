@@ -3,7 +3,13 @@ import unittest
 
 from src.circuit_graph.graph import CircuitEdge, CircuitGraph
 from src.mapping_common import route_circuit
-from src.mapping2 import hill_climb_placement, map2, mapping_cost_weights
+from mapping_flow import (
+    build_min_cost_max_flow_graph,
+    compute_max_flow_min_cost,
+    extract_mapping_from_residual_graph,
+    hill_climb_placement,
+    mapping_cost_weights,
+)
 from src.topology_graph.graph import TopologyEdge, TopologyGraph
 
 
@@ -27,7 +33,7 @@ def make_interaction_circuit(
     )
 
 
-class Mapping2Tests(unittest.TestCase):
+class MaxFlowMinCostMappingTests(unittest.TestCase):
     def test_graphs_precompute_mapping_metrics(self):
         topology = TopologyGraph(
             [
@@ -64,7 +70,7 @@ class Mapping2Tests(unittest.TestCase):
         self.assertEqual(mapping_cost_weights(intermediate), (0.325, 0.275, 0.4))
         self.assertEqual(mapping_cost_weights(deep), (0.45, 0.35, 0.2))
 
-    def test_map2_returns_cost_edges_and_handles_zero_error_rates(self):
+    def test_flow_graph_has_cost_edges_and_handles_zero_error_rates(self):
         topology = TopologyGraph(
             [
                 TopologyEdge(0, 1, 0.0, 1.0),
@@ -72,15 +78,59 @@ class Mapping2Tests(unittest.TestCase):
             ]
         )
 
-        flux_graph = map2(make_circuit(), topology)
+        flow_graph = build_min_cost_max_flow_graph(make_circuit(), topology)
 
-        self.assertEqual(flux_graph["s"], {"l0": 0.0, "l1": 0.0})
-        self.assertEqual(flux_graph["t0"], {"t": 0.0})
-        self.assertEqual(flux_graph["t1"], {"t": 0.0})
+        self.assertEqual(flow_graph["s"], {"l0": 0.0, "l1": 0.0})
+        self.assertEqual(flow_graph["t0"], {"t": 0.0})
+        self.assertEqual(flow_graph["t1"], {"t": 0.0})
         for logical_qubit in ("l0", "l1"):
-            for cost in flux_graph[logical_qubit].values():
+            for cost in flow_graph[logical_qubit].values():
                 self.assertTrue(math.isfinite(cost))
                 self.assertGreaterEqual(cost, 0.0)
+
+    def test_compute_max_flow_min_cost_finds_minimum_cost_full_assignment(self):
+        flow_graph = {
+            "s": {"l0": 0.0, "l1": 0.0},
+            "l0": {"t0": 1.0, "t1": 5.0},
+            "l1": {"t0": 2.0, "t1": 3.0},
+            "t0": {"t": 0.0},
+            "t1": {"t": 0.0},
+        }
+
+        max_flow, min_cost, _ = compute_max_flow_min_cost(flow_graph, "s", "t")
+
+        self.assertEqual(max_flow, 2.0)
+        self.assertEqual(min_cost, 4.0)
+
+    def test_extract_mapping_from_residual_graph(self):
+        circuit = make_circuit()
+        topology = TopologyGraph(
+            [
+                TopologyEdge(0, 1, 0.1, 0.9),
+                TopologyEdge(1, 0, 0.1, 0.9),
+                TopologyEdge(1, 2, 0.1, 0.9),
+                TopologyEdge(2, 1, 0.1, 0.9),
+            ]
+        )
+        flow_graph = {
+            "s": {"l0": 0.0, "l1": 0.0},
+            "l0": {"t0": 1.0, "t1": 5.0, "t2": 6.0},
+            "l1": {"t0": 2.0, "t1": 3.0, "t2": 4.0},
+            "t0": {"t": 0.0},
+            "t1": {"t": 0.0},
+            "t2": {"t": 0.0},
+        }
+        max_flow, _, residual_graph = compute_max_flow_min_cost(
+            flow_graph,
+            "s",
+            "t",
+        )
+
+        self.assertEqual(max_flow, circuit.qubit_count)
+        self.assertEqual(
+            extract_mapping_from_residual_graph(circuit, topology, residual_graph),
+            {0: 0, 1: 1},
+        )
 
     def test_disconnected_hardware_links_get_a_finite_penalty(self):
         topology = TopologyGraph(
@@ -92,9 +142,9 @@ class Mapping2Tests(unittest.TestCase):
 
         self.assertEqual(topology.mean_distance, {0: 2.0, 1: 2.0})
         self.assertEqual(topology.mean_path_error, {0: 1.0, 1: 1.0})
-        flux_graph = map2(make_circuit(), topology)
+        flow_graph = build_min_cost_max_flow_graph(make_circuit(), topology)
         for logical_qubit in ("l0", "l1"):
-            for cost in flux_graph[logical_qubit].values():
+            for cost in flow_graph[logical_qubit].values():
                 self.assertTrue(math.isfinite(cost))
 
     def test_hill_climbing_improves_the_initial_mapping(self):

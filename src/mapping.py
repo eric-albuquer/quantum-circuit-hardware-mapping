@@ -45,9 +45,6 @@ def count_possible_mappings(
     return math.perm(topology.qubit_count, circuit.qubit_count)
 
 
-_interaction_pairs = interaction_pairs
-
-
 def _initialize_placement_worker(
     circuit: CircuitGraph,
     topology: TopologyGraph,
@@ -113,7 +110,7 @@ def _interaction_pair_initial_placement(
 ) -> dict[int, int]:
     weighted_degrees = circuit.qubit_interactions
     degrees = circuit.qubit_degree
-    logical_pairs = _interaction_pairs(circuit)
+    logical_pairs = interaction_pairs(circuit)
     if not logical_pairs:
         return _degree_initial_placement(circuit, topology)
 

@@ -20,7 +20,7 @@ def mapping_cost_weights(circuit: CircuitGraph) -> tuple[float, float, float]:
     )
 
 
-def map2(
+def build_min_cost_max_flow_graph(
     circuit: CircuitGraph,
     topology: TopologyGraph,
 ) -> dict[str, dict[str, float]]:
@@ -38,17 +38,17 @@ def map2(
     ]
     weight_degree, weight_distance, weight_error = mapping_cost_weights(circuit)
 
-    flux_graph: dict[str, dict[str, float]] = {"s": {}}
+    flow_graph: dict[str, dict[str, float]] = {"s": {}}
 
     for physical_qubit in topology.graph:
         key = f"t{physical_qubit}"
-        flux_graph[key] = {}
-        flux_graph[key]["t"] = 0.0
+        flow_graph[key] = {}
+        flow_graph[key]["t"] = 0.0
 
     for logical_qubit in range(circuit.qubit_count):
         lkey = f"l{logical_qubit}"
-        flux_graph["s"][lkey] = 0.0
-        flux_graph[lkey] = {}
+        flow_graph["s"][lkey] = 0.0
+        flow_graph[lkey] = {}
 
         for physical_qubit in topology.graph:
             p_degree = normalize(
@@ -82,55 +82,40 @@ def map2(
             )
 
             tkey = f"t{physical_qubit}"
-            flux_graph[lkey][tkey] = cost
+            flow_graph[lkey][tkey] = cost
 
-    return flux_graph
-
-
-def hill_climb_placement(
-    circuit: CircuitGraph,
-    topology: TopologyGraph,
-    mapping: dict[int, int],
-) -> tuple[dict[int, int], tuple[float, int]]:
-    """Improve placement by evaluating the complete routed error and SWAP count."""
-    return _hill_climb_placement(circuit, topology, mapping)
+    return flow_graph
 
 
-def compute_max_flux_min_cost(
-    flux_graph: dict[str, dict[str, float]], 
-    source: str, 
-    sink: str
+def compute_max_flow_min_cost(
+    flow_graph: dict[str, dict[str, float]],
+    source: str,
+    sink: str,
 ) -> tuple[float, float, dict[str, dict[str, list[float]]]]:
-    # Estrutura: reverse_flux_graph[u][v] = [capacidade_residual, custo]
-    reverse_flux_graph: dict[str, dict[str, list[float]]] = {}
+    residual_graph: dict[str, dict[str, list[float]]] = {}
 
-    # 1. Montagem da rede residual com dicionários aninhados
-    for q0, adj in flux_graph.items():
-        if q0 not in reverse_flux_graph:
-            reverse_flux_graph[q0] = {}
+    for q0, adj in flow_graph.items():
+        if q0 not in residual_graph:
+            residual_graph[q0] = {}
 
         for q1, cost in adj.items():
-            if q1 not in reverse_flux_graph:
-                reverse_flux_graph[q1] = {}
+            if q1 not in residual_graph:
+                residual_graph[q1] = {}
 
-            # Aresta direta: capacidade 1, custo positivo
-            reverse_flux_graph[q0][q1] = [1.0, cost]
-            # Aresta reversa: capacidade 0, custo negativo (para permitir desfazer fluxo)
-            reverse_flux_graph[q1][q0] = [0.0, -cost]
+            residual_graph[q0][q1] = [1.0, cost]
+            residual_graph[q1][q0] = [0.0, -cost]
 
-    # Garante que source e sink existam no grafo caso sejam isolados
-    reverse_flux_graph.setdefault(source, {})
-    reverse_flux_graph.setdefault(sink, {})
+    residual_graph.setdefault(source, {})
+    residual_graph.setdefault(sink, {})
 
     max_flow = 0.0
     min_cost = 0.0
-    potentials = {node: 0.0 for node in reverse_flux_graph}
+    potentials = {node: 0.0 for node in residual_graph}
 
-    # 2. Loop principal (Caminhos Mais Curtos Sucessivos)
     while True:
-        dist = {node: float('inf') for node in reverse_flux_graph}
-        parent = {node: None for node in reverse_flux_graph}
-        
+        dist = {node: float("inf") for node in residual_graph}
+        parent = {node: None for node in residual_graph}
+
         dist[source] = 0.0
         pq = [(0.0, source)]
 
@@ -140,7 +125,10 @@ def compute_max_flux_min_cost(
             if d > dist[u]:
                 continue
 
-            for v, (cap, cost) in reverse_flux_graph[u].items():
+            if u == sink:
+                break
+
+            for v, (cap, cost) in residual_graph[u].items():
                 if cap > 0:
                     reduced_cost = cost + potentials[u] - potentials[v]
                     if dist[u] + reduced_cost < dist[v]:
@@ -148,18 +136,18 @@ def compute_max_flux_min_cost(
                         parent[v] = u
                         heapq.heappush(pq, (dist[v], v))
 
-        if dist[sink] == float('inf'):
+        if dist[sink] == float("inf"):
             break
 
-        for node in reverse_flux_graph:
-            if dist[node] < float('inf'):
+        for node in residual_graph:
+            if dist[node] < float("inf"):
                 potentials[node] += dist[node]
 
-        push_flow = float('inf')
+        push_flow = float("inf")
         curr = sink
         while curr != source:
             p = parent[curr]
-            cap = reverse_flux_graph[p][curr][0]
+            cap = residual_graph[p][curr][0]
             push_flow = min(push_flow, cap)
             curr = p
 
@@ -167,15 +155,37 @@ def compute_max_flux_min_cost(
         curr = sink
         while curr != source:
             p = parent[curr]
-            edge_cost = reverse_flux_graph[p][curr][1]
+            edge_cost = residual_graph[p][curr][1]
 
-            reverse_flux_graph[p][curr][0] -= push_flow  # Consome capacidade direta
-            reverse_flux_graph[curr][p][0] += push_flow  # Libera capacidade reversa
-            
+            residual_graph[p][curr][0] -= push_flow
+            residual_graph[curr][p][0] += push_flow
+
             min_cost += push_flow * edge_cost
             curr = p
 
-    return max_flow, min_cost, reverse_flux_graph
+    return max_flow, min_cost, residual_graph
+
+
+def extract_mapping_from_residual_graph(
+    circuit: CircuitGraph,
+    topology: TopologyGraph,
+    residual_graph: dict[str, dict[str, list[float]]],
+) -> dict[int, int]:
+    """Extract and validate the logical-to-physical assignment from the flow."""
+    mapping = {}
+    for logical_qubit in range(circuit.qubit_count):
+        logical_key = f"l{logical_qubit}"
+        for physical_qubit in topology.graph:
+            physical_key = f"t{physical_qubit}"
+            if residual_graph[logical_key][physical_key][0] == 0.0:
+                mapping[logical_qubit] = physical_qubit
+
+    if len(mapping) != circuit.qubit_count:
+        raise RuntimeError("The min-cost flow did not produce a complete mapping")
+
+    validate_mapping(circuit, topology, mapping)
+    return mapping
+
 
 def main() -> None:
     import argparse
@@ -241,9 +251,9 @@ def main() -> None:
 
     circuit = load_circuit_graph(str(args.circuit))
     topology = load_topology_graph(str(args.topology))
-    flux_graph = map2(circuit, topology)
-    max_flow, _, reverse_flux_graph = compute_max_flux_min_cost(
-        flux_graph,
+    flow_graph = build_min_cost_max_flow_graph(circuit, topology)
+    max_flow, _, residual_graph = compute_max_flow_min_cost(
+        flow_graph,
         "s",
         "t",
     )
@@ -253,20 +263,13 @@ def main() -> None:
             "Could not assign every logical qubit to a distinct physical qubit"
         )
 
-    initial_mapping = {}
-    for lq in range(circuit.qubit_count):
-        lkey = f"l{lq}"
+    initial_mapping = extract_mapping_from_residual_graph(
+        circuit,
+        topology,
+        residual_graph,
+    )
 
-        for tq in topology.graph:
-            tkey = f"t{tq}"
-
-            if reverse_flux_graph[lkey][tkey][0] == 0.0:
-                initial_mapping[lq] = tq
-
-    if len(initial_mapping) != circuit.qubit_count:
-        raise RuntimeError("The min-cost flow did not produce a complete mapping")
-
-    mapped, placement_cost = hill_climb_placement(
+    mapped, placement_cost = _hill_climb_placement(
         circuit,
         topology,
         initial_mapping,
