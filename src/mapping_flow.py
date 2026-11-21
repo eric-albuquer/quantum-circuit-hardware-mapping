@@ -5,6 +5,8 @@ from src.mapping_common import hill_climb_placement as _hill_climb_placement
 from src.mapping_common import validate_mapping
 from src.topology_graph.graph import TopologyGraph
 
+hill_climb_placement = _hill_climb_placement
+
 SHALLOW_WEIGHTS = (0.2, 0.2, 0.6)
 DEEP_WEIGHTS = (0.45, 0.35, 0.2)
 ADJACENT_ERROR_WEIGHT = 0.7
@@ -128,6 +130,12 @@ def compute_max_flow_min_cost(
             for v, (cap, cost) in residual_graph[u].items():
                 if cap > 0:
                     reduced_cost = cost + potentials[u] - potentials[v]
+                    if reduced_cost < -1e-12:
+                        raise RuntimeError(
+                            "Negative reduced cost violates Dijkstra's invariant"
+                        )
+                    if reduced_cost < 0:
+                        reduced_cost = 0.0
                     if dist[u] + reduced_cost < dist[v]:
                         dist[v] = dist[u] + reduced_cost
                         parent[v] = u

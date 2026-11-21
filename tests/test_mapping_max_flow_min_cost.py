@@ -102,6 +102,40 @@ class MaxFlowMinCostMappingTests(unittest.TestCase):
         self.assertEqual(max_flow, 2.0)
         self.assertEqual(min_cost, 4.0)
 
+    def test_compute_max_flow_min_cost_handles_float_rounding_ties(self):
+        interactions = [(3, 2), (2, 1), (1, 0)]
+        circuit = make_interaction_circuit(interactions, 4)
+        link_errors = (
+            (0, 1, 0.0013216868179469431),
+            (1, 0, 0.003146675214765709),
+            (1, 2, 0.0014916480464655913),
+            (2, 1, 0.0006931236489664008),
+            (2, 3, 0.0013124757662012173),
+            (3, 2, 0.0020525941373089364),
+        )
+        topology = TopologyGraph(
+            [
+                TopologyEdge(source, target, error, 1.0 - error)
+                for source, target, error in link_errors
+            ]
+        )
+        flow_graph = build_min_cost_max_flow_graph(circuit, topology)
+
+        max_flow, min_cost, residual_graph = compute_max_flow_min_cost(
+            flow_graph,
+            "s",
+            "t",
+        )
+
+        self.assertEqual(max_flow, circuit.qubit_count)
+        self.assertTrue(math.isfinite(min_cost))
+        mapping = extract_mapping_from_residual_graph(
+            circuit,
+            topology,
+            residual_graph,
+        )
+        self.assertEqual(len(set(mapping.values())), circuit.qubit_count)
+
     def test_extract_mapping_from_residual_graph(self):
         circuit = make_circuit()
         topology = TopologyGraph(
