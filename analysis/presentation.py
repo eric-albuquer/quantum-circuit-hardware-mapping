@@ -1,3 +1,4 @@
+# [IA] Claude Code (Claude Opus 5.5) – módulo da página de apresentação do projeto
 """Página de apresentação do projeto no app Streamlit."""
 
 from __future__ import annotations
@@ -6,6 +7,7 @@ import pandas as pd
 import streamlit as st
 
 
+# [IA] Claude Code (Claude Opus 5.5) – texto de introdução e tabela de modelagem em grafos
 def _show_problem() -> None:
     st.header(":blue[Sobre o projeto]")
     st.markdown(
@@ -65,6 +67,7 @@ def _show_problem() -> None:
     )
 
 
+# [IA] Claude Code (Claude Opus 5.5) – conteúdo das etapas do pipeline
 PIPELINE_STEPS = (
     (
         "1. Pré-processamento",
@@ -88,6 +91,7 @@ PIPELINE_STEPS = (
     ),
 )
 
+# [IA] Claude Code (Claude Opus 5.5) – estilo CSS das caixas e setas do pipeline
 _PIPELINE_STYLE = """
 <style>
 .pipeline-flow {
@@ -128,6 +132,7 @@ _PIPELINE_STYLE = """
 """
 
 
+# [IA] Claude Code (Claude Opus 5.5) – renderização do pipeline em caixas ligadas por setas
 def _pipeline_flow() -> None:
     """Mostra as etapas do pipeline como caixas ligadas por setas."""
     steps = [
@@ -142,6 +147,7 @@ def _pipeline_flow() -> None:
     st.html(_PIPELINE_STYLE + f'<div class="pipeline-flow">{arrow.join(steps)}</div>')
 
 
+# [IA] Claude Code (Claude Opus 5.5) – seção do pipeline e objetivo comum de avaliação
 def _show_pipeline() -> None:
     st.divider()
     st.subheader(":blue[Pipeline]")
@@ -165,6 +171,7 @@ def _show_pipeline() -> None:
     )
 
 
+# [IA] Claude Code (Claude Opus 5.5) – descrição do Dijkstra de todas as origens e das estruturas do circuito
 def _show_preprocessing() -> None:
     st.markdown("#### Caminhos de menor erro no hardware")
     st.markdown(
@@ -253,6 +260,7 @@ def _show_preprocessing() -> None:
     )
 
 
+# [IA] Claude Code (Claude Opus 5.5) – descrição do roteamento ordenado com SWAPs
 def _show_routing() -> None:
     st.markdown(
         r"""
@@ -296,6 +304,7 @@ retorna swaps, 1 − sucesso, m_final""",
     )
 
 
+# [IA] Claude Code (Claude Opus 5.5) – descrição da busca exata
 def _show_exact_search() -> None:
     st.markdown(
         r"""
@@ -346,6 +355,7 @@ melhor ← min(dfs([p]) para p em 0..n−1)   via ProcessPoolExecutor""",
     )
 
 
+# [IA] Claude Code (Claude Opus 5.5) – descrição da heurística multi-start com hill climbing
 def _show_multistart() -> None:
     st.markdown(
         r"""
@@ -439,6 +449,7 @@ retorna argmin_lex (erro, swaps, índices) dos finalistas""",
     )
 
 
+# [IA] Claude Code (Claude Opus 5.5) – descrição do fluxo de custo mínimo
 def _show_min_cost_flow() -> None:
     st.markdown(
         r"""
@@ -551,6 +562,7 @@ mapeamento ← hill_climb(mapeamento)                  # refino com custo rotead
     )
 
 
+# [IA] Claude Code (Claude Opus 5.5) – descrição do baseline Qiskit SABRE
 def _show_sabre() -> None:
     st.markdown(
         """
@@ -572,6 +584,7 @@ def _show_sabre() -> None:
     )
 
 
+# [IA] Claude Code (Claude Opus 5.5) – abas dos algoritmos e tabela de resumo comparativo
 def _show_algorithms() -> None:
     st.divider()
     st.subheader(":blue[Algoritmos desenvolvidos]")
@@ -644,6 +657,7 @@ def _show_algorithms() -> None:
     )
 
 
+# [IA] Claude Code (Claude Opus 5.5) – montagem da página de apresentação
 def show_presentation(
     circuits: pd.DataFrame,
     topologies: pd.DataFrame,
