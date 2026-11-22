@@ -6,6 +6,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from analysis.presentation import show_presentation
 from analysis.visualize_avd import (
     generate,
     load_circuits,
@@ -20,12 +21,6 @@ ROOT = Path(__file__).resolve().parents[1]
 OUTPUT = ROOT / "out" / "parte2"
 METRICS_PATH = OUTPUT / "metricas_grafos.csv"
 BENCHMARK_PATH = OUTPUT / "mapping_benchmarks.csv"
-COMMON_FIGURES = (
-    "01_escala_circuitos.png",
-    "02_relacao_interacoes_profundidade.png",
-    "03_estrutura_topologias.png",
-    "04_erros_e_outliers.png",
-)
 ALGORITHM_OPTIONS = (
     (
         "Busca exata",
@@ -563,7 +558,7 @@ def _show_mapping_results(results: pd.DataFrame) -> None:
         )
 
 
-st.title("Mapeamento de circuitos quânticos")
+st.title(":blue[Mapeamento de circuitos quânticos]")
 st.caption(
     "Compare grafos pré-computados, estratégias locais de mapeamento e "
     "Qiskit SABRE em condições controladas."
@@ -615,136 +610,124 @@ if not benchmarks.empty:
     benchmarks = benchmarks.loc[benchmark_rows].copy()
 
 tab_overview, tab_case, tab_comparison = st.tabs(
-    ["Panorama comum", "Caso selecionado", "Comparação de algoritmos"]
+    ["Apresentação", "Caso selecionado", "Comparação de algoritmos"]
 )
 
 with tab_overview:
-    st.header("Visão comum: dados e topologias")
-    col1, col2, col3, col4 = st.columns(4)
-    col1.metric("Circuitos", f"{len(circuits):,}")
-    col2.metric("Topologias", f"{len(topologies):,}")
-    col3.metric("Famílias de circuitos", f"{circuits['categoria'].nunique():,}")
-    col4.metric("Famílias de hardware", f"{topologies['categoria'].nunique():,}")
-
-    circuit_category = st.selectbox(
-        "Filtrar tabela de circuitos por categoria",
-        ["Todas"] + sorted(circuits["categoria"].dropna().unique()),
-        key="overview_circuit_category",
-    )
-    topology_category = st.selectbox(
-        "Filtrar tabela de topologias por arquitetura",
-        ["Todas"] + sorted(topologies["categoria"].dropna().unique()),
-        key="overview_topology_category",
-    )
-    left, right = st.columns(2)
-    filtered_circuits = circuits
-    if circuit_category != "Todas":
-        filtered_circuits = circuits[circuits["categoria"] == circuit_category]
-    with left:
-        st.subheader("Circuitos")
-        st.caption(
-            "Interações contam gates de dois qubits; grau conta vizinhos "
-            "distintos; pressão de profundidade resume dependências seriais."
+    show_presentation(circuits, topologies, benchmarks)
+    with st.expander("Explorar os conjuntos de circuitos e topologias"):
+        circuit_category = st.selectbox(
+            "Filtrar tabela de circuitos por categoria",
+            ["Todas"] + sorted(circuits["categoria"].dropna().unique()),
+            key="overview_circuit_category",
         )
-        st.dataframe(
-            filtered_circuits[
+        topology_category = st.selectbox(
+            "Filtrar tabela de topologias por arquitetura",
+            ["Todas"] + sorted(topologies["categoria"].dropna().unique()),
+            key="overview_topology_category",
+        )
+        left, right = st.columns(2)
+        filtered_circuits = circuits
+        if circuit_category != "Todas":
+            filtered_circuits = circuits[circuits["categoria"] == circuit_category]
+        with left:
+            st.subheader("Circuitos")
+            st.caption(
+                "Interações contam gates de dois qubits; grau conta vizinhos "
+                "distintos; pressão de profundidade resume dependências seriais."
+            )
+            st.dataframe(
+                filtered_circuits[
+                    [
+                        "grafo",
+                        "categoria",
+                        "vertices",
+                        "interacoes_dois_qubits",
+                        "arestas_nao_direcionadas",
+                        "densidade_nao_direcionada",
+                        "grau_medio",
+                        "profundidade_dependencia",
+                        "pressao_profundidade",
+                        "grau_maximo_qubit",
+                        "interacoes_maximo_qubit",
+                    ]
+                ].rename(
+                    columns={
+                        "grafo": "Circuito",
+                        "categoria": "Família",
+                        "vertices": "Qubits",
+                        "interacoes_dois_qubits": "Gates de 2 qubits",
+                        "arestas_nao_direcionadas": "Pares conectados",
+                        "densidade_nao_direcionada": "Densidade de interação",
+                        "grau_medio": "Grau médio",
+                        "profundidade_dependencia": "Profundidade",
+                        "pressao_profundidade": "Pressão de profundidade",
+                        "grau_maximo_qubit": "Maior grau por qubit",
+                        "interacoes_maximo_qubit": "Máximo de interações/qubit",
+                    }
+                ),
+                width="stretch",
+                hide_index=True,
+            )
+        filtered_topologies = topologies
+        if topology_category != "Todas":
+            filtered_topologies = topologies[
+                topologies["categoria"] == topology_category
+            ]
+        with right:
+            st.subheader("Topologias")
+            st.caption(
+                "Erro e distância são médias do melhor caminho entre qubits; "
+                "densidade e graus descrevem a conectividade física."
+            )
+            topology_table = filtered_topologies[
                 [
                     "grafo",
                     "categoria",
                     "vertices",
-                    "interacoes_dois_qubits",
+                    "arcos_direcionados",
                     "arestas_nao_direcionadas",
+                    "densidade_direcionada",
                     "densidade_nao_direcionada",
-                    "grau_medio",
-                    "profundidade_dependencia",
-                    "pressao_profundidade",
-                    "grau_maximo_qubit",
-                    "interacoes_maximo_qubit",
+                    "grau_medio_entrada",
+                    "grau_medio_saida",
+                    "erro_adjacente_global",
+                    "distancia_media_maxima",
+                    "erro_caminho_medio_maximo",
+                    "grau_maximo_fisico",
+                    "erro_adjacente_maximo",
                 ]
-            ].rename(
-                columns={
-                    "grafo": "Circuito",
-                    "categoria": "Família",
-                    "vertices": "Qubits",
-                    "interacoes_dois_qubits": "Gates de 2 qubits",
-                    "arestas_nao_direcionadas": "Pares conectados",
-                    "densidade_nao_direcionada": "Densidade de interação",
-                    "grau_medio": "Grau médio",
-                    "profundidade_dependencia": "Profundidade",
-                    "pressao_profundidade": "Pressão de profundidade",
-                    "grau_maximo_qubit": "Maior grau por qubit",
-                    "interacoes_maximo_qubit": "Máximo de interações/qubit",
-                }
-            ),
-            width="stretch",
-            hide_index=True,
-        )
-    filtered_topologies = topologies
-    if topology_category != "Todas":
-        filtered_topologies = topologies[
-            topologies["categoria"] == topology_category
-        ]
-    with right:
-        st.subheader("Topologias")
-        st.caption(
-            "Erro e distância são médias do melhor caminho entre qubits; "
-            "densidade e graus descrevem a conectividade física."
-        )
-        topology_table = filtered_topologies[
-            [
-                "grafo",
-                "categoria",
-                "vertices",
-                "arcos_direcionados",
-                "arestas_nao_direcionadas",
-                "densidade_direcionada",
-                "densidade_nao_direcionada",
-                "grau_medio_entrada",
-                "grau_medio_saida",
+            ].copy()
+            for column in (
                 "erro_adjacente_global",
-                "distancia_media_maxima",
                 "erro_caminho_medio_maximo",
-                "grau_maximo_fisico",
                 "erro_adjacente_maximo",
-            ]
-        ].copy()
-        for column in (
-            "erro_adjacente_global",
-            "erro_caminho_medio_maximo",
-            "erro_adjacente_maximo",
-        ):
-            topology_table[column] *= 100
-        st.dataframe(
-            topology_table.rename(
-                columns={
-                    "grafo": "Topologia",
-                    "categoria": "Arquitetura",
-                    "vertices": "Qubits físicos",
-                    "arcos_direcionados": "Arcos direcionados",
-                    "arestas_nao_direcionadas": "Links físicos",
-                    "densidade_direcionada": "Densidade direcionada",
-                    "densidade_nao_direcionada": "Densidade de links",
-                    "grau_medio_entrada": "Grau médio de entrada",
-                    "grau_medio_saida": "Grau médio de saída",
-                    "erro_adjacente_global": "Erro médio dos links (%)",
-                    "distancia_media_maxima": "Maior distância média",
-                    "erro_caminho_medio_maximo": (
-                        "Maior erro médio de caminho (%)"
-                    ),
-                    "grau_maximo_fisico": "Maior grau físico",
-                    "erro_adjacente_maximo": "Maior erro médio de link (%)",
-                }
-            ),
-            width="stretch",
-            hide_index=True,
-        )
-
-    st.subheader("Gráficos independentes da seleção")
-    st.caption(
-        "Estes quatro gráficos resumem o conjunto de dados completo; a seleção "
-        "de circuito, topologia ou algoritmo não os altera."
-    )
-    _show_figures(COMMON_FIGURES)
+            ):
+                topology_table[column] *= 100
+            st.dataframe(
+                topology_table.rename(
+                    columns={
+                        "grafo": "Topologia",
+                        "categoria": "Arquitetura",
+                        "vertices": "Qubits físicos",
+                        "arcos_direcionados": "Arcos direcionados",
+                        "arestas_nao_direcionadas": "Links físicos",
+                        "densidade_direcionada": "Densidade direcionada",
+                        "densidade_nao_direcionada": "Densidade de links",
+                        "grau_medio_entrada": "Grau médio de entrada",
+                        "grau_medio_saida": "Grau médio de saída",
+                        "erro_adjacente_global": "Erro médio dos links (%)",
+                        "distancia_media_maxima": "Maior distância média",
+                        "erro_caminho_medio_maximo": (
+                            "Maior erro médio de caminho (%)"
+                        ),
+                        "grau_maximo_fisico": "Maior grau físico",
+                        "erro_adjacente_maximo": "Maior erro médio de link (%)",
+                    }
+                ),
+                width="stretch",
+                hide_index=True,
+            )
 
 with tab_case:
     st.header("Caso selecionado: circuito, hardware e mapeamentos")
