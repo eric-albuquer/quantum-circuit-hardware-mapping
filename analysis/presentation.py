@@ -614,7 +614,9 @@ def _show_algorithms() -> None:
         with tab:
             section()
 
-    st.markdown("#### Resumo comparativo")
+
+def show_comparative_summary() -> None:
+    st.subheader(":blue[Resumo comparativo]")
     st.dataframe(
         pd.DataFrame(
             [
@@ -667,19 +669,162 @@ def show_presentation(
     _show_pipeline()
     _show_algorithms()
 
+
+# [IA] Claude Code (Claude Opus 5.5) – documentação da geração dos datasets na aba EDA
+def _show_dataset_generation(circuits: pd.DataFrame) -> None:
+    random_mask = circuits["categoria"] == "random"
+    real_circuits = circuits[~random_mask]
+    random_circuits = circuits[random_mask]
+
     st.divider()
+    st.subheader(":blue[Como os datasets foram gerados]")
+    st.markdown(
+        """
+        Todos os arquivos em `datasets/` foram **gerados por scripts do
+        projeto**, mas isso não significa que todos os valores sejam
+        inventados. Alguns conjuntos reproduzem estruturas reais (algoritmos
+        quânticos conhecidos e layouts de conectividade), enquanto outros
+        atributos foram **sorteados** para simular um hardware.
+        """
+    )
+
+    real_box, synthetic_box = st.columns(2)
+    with real_box.container(border=True):
+        st.markdown("#### :green[Dados reais]")
+        st.markdown(
+            f"""
+            - **Circuitos de algoritmos** ({len(real_circuits):,} circuitos,
+              {real_circuits["categoria"].nunique():,} famílias): obtidos do
+              [MQT Bench](https://www.cda.cit.tum.de/mqtbench/), no nível
+              algorítmico, de 3 a 30 qubits. São implementações reais de
+              algoritmos como GHZ, QFT, QAOA, Grover e somadores.
+            - **Estrutura das topologias**: as conexões entre qubits físicos
+              vêm dos construtores de `CouplingMap` do Qiskit (linha, anel,
+              completa, grade, heavy-hex e heavy-square).
+            - **Interações derivadas**: as contagens por par e as listas
+              ordenadas de interações são extraídas dos circuitos, de forma
+              determinística, sem nenhum valor sorteado.
+            """
+        )
+    with synthetic_box.container(border=True):
+        st.markdown("#### :orange[Dados sintéticos]")
+        st.markdown(
+            f"""
+            - **Erro das conexões de hardware** (`gate_error_rate` e
+              `gate_fidelity`): sorteado de uma distribuição log-normal com
+              mediana de 0,15%, limitada ao intervalo 0,02%–1%.
+            - **Propriedades por qubit** (`readout_error` e
+              `t1_coherence_us`): erro de leitura log-normal e tempo T1
+              normal, ambos limitados.
+            - **Circuitos aleatórios** ({len(random_circuits):,} circuitos):
+              gerados com `random_circuit` do Qiskit, com 4 a 12 qubits e
+              profundidades 10, 20 e 30. Não representam um algoritmo.
+            """
+        )
+    st.warning(
+        "As taxas de erro do hardware **não são medições de um processador "
+        "real**: não há calibração, data nem dispositivo de origem. Por isso, "
+        "o erro estimado dos mapeamentos serve para comparar algoritmos entre "
+        "si, não para prever o desempenho em um hardware específico."
+    )
+
+    st.markdown("#### Conjuntos gerados")
+    st.dataframe(
+        pd.DataFrame(
+            [
+                {
+                    "Conjunto": "Circuitos de algoritmos",
+                    "Pasta": "datasets/algorithms/<algoritmo>/",
+                    "Como foi gerado": "MQT Bench (nível ALG), exportado em OpenQASM 2",
+                    "Origem": "Real",
+                },
+                {
+                    "Conjunto": "Circuitos aleatórios",
+                    "Pasta": "datasets/algorithms/random/",
+                    "Como foi gerado": (
+                        "random_circuit do Qiskit (até 2 operandos), "
+                        "exportado em OpenQASM 3, sem seed fixa"
+                    ),
+                    "Origem": "Sintético",
+                },
+                {
+                    "Conjunto": "Conectividade das topologias",
+                    "Pasta": "datasets/topologies/<topologia>/",
+                    "Como foi gerado": (
+                        "CouplingMap do Qiskit; arcos dirigidos, então um "
+                        "link bidirecional aparece duas vezes"
+                    ),
+                    "Origem": "Real (layouts de referência)",
+                },
+                {
+                    "Conjunto": "Erros e fidelidades do hardware",
+                    "Pasta": "datasets/topologies/<topologia>/",
+                    "Como foi gerado": (
+                        "Sorteio log-normal (gates e leitura) e normal (T1), "
+                        "com seed derivada do nome da topologia"
+                    ),
+                    "Origem": "Sintético",
+                },
+                {
+                    "Conjunto": "Interações por par",
+                    "Pasta": "datasets/interaction_analysis/algorithms/",
+                    "Como foi gerado": (
+                        "Contagem de instruções de dois qubits por par de "
+                        "qubits lógicos, incluindo pares com zero interações"
+                    ),
+                    "Origem": "Derivado dos circuitos",
+                },
+                {
+                    "Conjunto": "Interações ordenadas",
+                    "Pasta": "datasets/interaction_order/algorithms/",
+                    "Como foi gerado": (
+                        "Uma linha por instrução de dois qubits, na ordem do "
+                        "circuito e com a ordem dos operandos preservada"
+                    ),
+                    "Origem": "Derivado dos circuitos",
+                },
+            ]
+        ),
+        width="stretch",
+        hide_index=True,
+    )
+
+    with st.expander("Comandos para regenerar os datasets"):
+        st.code(
+            """python -m dataset_generation              # circuitos MQT, aleatórios e topologias
+python -m dataset_generation algorithms   # só circuitos do MQT Bench
+python -m dataset_generation random       # só circuitos aleatórios
+python -m dataset_generation topologies   # só topologias com erros sintéticos
+python -m analysis.generate_algorithm_interactions  # interações por par
+python -m analysis.generate_ordered_interactions    # interações ordenadas""",
+            language="bash",
+        )
+        st.caption(
+            "As topologias são reprodutíveis porque a seed vem do nome de cada "
+            "topologia. Os circuitos aleatórios não têm seed fixa, então podem "
+            "mudar ao regenerar."
+        )
+
+
+# [IA] Claude Code (Claude Opus 5.5) – aba EDA com dados e navegação
+def show_eda(
+    circuits: pd.DataFrame,
+    topologies: pd.DataFrame,
+    benchmarks: pd.DataFrame,
+) -> None:
+    st.header(":blue[EDA]")
     st.subheader(":blue[Dados e navegação]")
-    columns = st.columns(4)
-    columns[0].metric("Circuitos", f"{len(circuits):,}")
-    columns[1].metric("Topologias", f"{len(topologies):,}")
-    columns[2].metric(
-        "Famílias de circuitos",
-        f"{circuits['categoria'].nunique():,}",
-    )
-    columns[3].metric(
-        "Famílias de hardware",
-        f"{topologies['categoria'].nunique():,}",
-    )
+    circuit_box, topology_box = st.columns(2)
+    with circuit_box.container(border=True):
+        st.markdown("#### Circuitos")
+        left, right = st.columns(2)
+        left.metric("Circuitos", f"{len(circuits):,}")
+        right.metric("Famílias", f"{circuits['categoria'].nunique():,}")
+    with topology_box.container(border=True):
+        st.markdown("#### Topologias")
+        left, right = st.columns(2)
+        left.metric("Topologias", f"{len(topologies):,}")
+        right.metric("Famílias de hardware", f"{topologies['categoria'].nunique():,}")
     if not benchmarks.empty:
         st.caption(
             f"{len(benchmarks):,} execuções de benchmark pré-computadas "
@@ -700,3 +845,5 @@ def show_presentation(
         "independentes; não inclui erros de um qubit, leitura, decoerência "
         "ou crosstalk, e não é uma medição em hardware real."
     )
+
+    _show_dataset_generation(circuits)

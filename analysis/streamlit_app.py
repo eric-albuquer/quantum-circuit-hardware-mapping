@@ -7,7 +7,11 @@ import pandas as pd
 import streamlit as st
 
 # [IA] Claude Code (Claude Opus 5.5) – importação da página de apresentação
-from analysis.presentation import show_presentation
+from analysis.presentation import (
+    show_comparative_summary,
+    show_eda,
+    show_presentation,
+)
 from analysis.visualize_avd import (
     generate,
     load_circuits,
@@ -587,12 +591,15 @@ if not benchmarks.empty:
     benchmarks = benchmarks.loc[benchmark_rows].copy()
 
 # [IA] Claude Code (Claude Opus 5.5) – aba de apresentação e tabelas de dados recolhidas
-tab_overview, tab_case, tab_comparison = st.tabs(
-    ["Apresentação", "Caso selecionado", "Comparação de algoritmos"]
+tab_overview, tab_eda, tab_case, tab_comparison = st.tabs(
+    ["Apresentação", "EDA", "Caso selecionado", "Comparação de algoritmos"]
 )
 
 with tab_overview:
     show_presentation(circuits, topologies, benchmarks)
+
+with tab_eda:
+    show_eda(circuits, topologies, benchmarks)
     with st.expander("Explorar os conjuntos de circuitos e topologias"):
         circuit_category = st.selectbox(
             "Filtrar tabela de circuitos por categoria",
@@ -880,6 +887,7 @@ with tab_comparison:
         "12 qubits, em topologias linear, anel, completa, grid, heavy-hex e "
         "heavy-square."
     )
+    show_comparative_summary()
     if benchmarks.empty:
         st.info("Ainda não há resultados de benchmark para comparar.")
     else:
