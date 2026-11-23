@@ -258,6 +258,9 @@ def _benchmark_case(
 
     quantum_circuit = QuantumCircuit(circuit.qubit_count)
     for interaction in circuit.fpga:
+        # [IA] Claude Code (Claude Sonnet 5.5) – portas de 1 qubit (qubit_1 == qubit_2) não entram no SABRE
+        if interaction.qubit_1 == interaction.qubit_2:
+            continue
         quantum_circuit.cx(interaction.qubit_1, interaction.qubit_2)
     coupling_map = CouplingMap(
         couplinglist=[

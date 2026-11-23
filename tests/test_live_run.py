@@ -33,6 +33,13 @@ class RunCaseTests(unittest.TestCase):
         )
         self.assertNotIn("Busca exata", {r["algorithm"] for r in records})
 
+    def test_circuit_with_one_qubit_gate_rows_runs_all_methods(self):
+        # Os CSVs ordenados trazem portas de 1 qubit como linhas com qubit_1 == qubit_2.
+        ghz = ROOT / "datasets/interaction_order/algorithms/ghz/ghz_5qubits_ordered_interactions.csv"
+        self.assertIn(",h,4,4", ghz.read_text(encoding="utf-8"))
+        records = run_case(ghz, TOPOLOGY, runs=1, initial_candidates=3)
+        self.assertEqual({r["algorithm"] for r in records}, set(ALGORITHMS))
+
     def test_rejects_invalid_arguments(self):
         with self.assertRaises(ValueError):
             run_case(CIRCUIT, TOPOLOGY, runs=0)
