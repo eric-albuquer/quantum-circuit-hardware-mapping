@@ -469,6 +469,16 @@ class MappingTests(unittest.TestCase):
         self.assertEqual(result.final_mapping, {0: 1, 1: 0, 2: 2})
         self.assertAlmostEqual(result.expected_error_rate, 1.0 - 0.99**5)
 
+    def test_routing_looks_ahead_before_choosing_which_operand_to_move(self):
+        circuit = make_circuit(3, [(0, 2), (1, 2)])
+        topology = make_topology([(0, 1), (1, 2)], 3)
+
+        result = route_circuit(circuit, topology, {0: 0, 1: 1, 2: 2})
+
+        self.assertEqual(result.swap_count, 1)
+        self.assertEqual(result.final_mapping, {0: 0, 1: 2, 2: 1})
+        self.assertAlmostEqual(result.expected_error_rate, 1.0 - 0.99**5)
+
     def test_unused_physical_qubits_can_be_used_during_routing(self):
         circuit = make_circuit(2, [(0, 1)])
         topology = make_topology([(0, 1), (1, 2)], 3)
@@ -509,6 +519,36 @@ class MappingTests(unittest.TestCase):
 
         self.assertEqual(result.swap_count, 1)
         self.assertAlmostEqual(result.expected_error_rate, 1.0 - 0.99**4)
+
+    def test_route_path_cost_models_swaps_as_three_two_qubit_gates(self):
+        circuit = make_circuit(2, [(0, 1)])
+        links = [
+            (0, 1, 0.05),
+            (1, 3, 0.05),
+            (0, 2, 0.001),
+            (2, 4, 0.001),
+            (4, 3, 0.099),
+        ]
+        topology = TopologyGraph(
+            [
+                edge
+                for source, target, error in links
+                for edge in (
+                    TopologyEdge(source, target, error, 1.0 - error),
+                    TopologyEdge(target, source, error, 1.0 - error),
+                )
+            ]
+        )
+
+        self.assertEqual(topology.path_matrix[0][3], [0, 1, 3])
+        result = route_circuit(circuit, topology, {0: 0, 1: 3})
+
+        self.assertEqual(result.swap_count, 2)
+        self.assertEqual(result.final_mapping, {0: 4, 1: 3})
+        self.assertAlmostEqual(
+            result.expected_error_rate,
+            1.0 - 0.999**6 * 0.901,
+        )
 
     def test_mapping_rejects_disconnected_topology(self):
         circuit = make_circuit(2, [(0, 1)])

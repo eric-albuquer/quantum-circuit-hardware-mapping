@@ -1,10 +1,16 @@
 from __future__ import annotations
 
+import heapq
+import math
 from dataclasses import dataclass
 from typing import Callable
 
-from src.circuit_graph.graph import CircuitGraph
+from src.circuit_graph.graph import CircuitEdge, CircuitGraph
 from src.topology_graph.graph import TopologyGraph
+
+
+_ROUTING_LOOKAHEAD = 3
+_ROUTING_BEAM_WIDTH = 8
 
 
 @dataclass(frozen=True)
@@ -39,61 +45,169 @@ def route_circuit(
     topology: TopologyGraph,
     mapping: dict[int, int],
 ) -> RoutingResult:
-    """Route ordered interactions and return the final placement and route metrics."""
+    """Route interactions with error-aware paths and bounded lookahead."""
     validate_mapping(circuit, topology, mapping)
-    final_mapping = mapping.copy()
-    physical_to_logical = {
-        physical: logical for logical, physical in mapping.items()
-    }
-    swap_count = 0
-    success_probability = 1.0
+    logical_qubits = tuple(range(circuit.qubit_count))
+    current_mapping = tuple(mapping[logical] for logical in logical_qubits)
+    operations = [
+        interaction
+        for interaction in circuit.fpga
+        if interaction.qubit_1 != interaction.qubit_2
+    ]
+    physical_neighbors = {physical: set() for physical in topology.graph}
+    for physical, neighbors in topology.graph.items():
+        for neighbor in neighbors:
+            if neighbor != physical:
+                physical_neighbors[physical].add(neighbor)
+                physical_neighbors[neighbor].add(physical)
 
-    def link_error_rate(physical_a: int, physical_b: int) -> float:
-        rate = topology.link_error_rate(physical_a, physical_b)
-        if not 0.0 <= rate <= 1.0:
-            raise ValueError(f"Invalid two-qubit gate error rate: {rate}")
-        return rate
+    edge_risk_cache: dict[tuple[int, int], float] = {}
 
-    for interaction in circuit.fpga:
-        if interaction.qubit_1 == interaction.qubit_2:
-            continue
+    def link_risk(physical_a: int, physical_b: int) -> float:
+        edge = (min(physical_a, physical_b), max(physical_a, physical_b))
+        if edge not in edge_risk_cache:
+            rate = topology.link_error_rate(physical_a, physical_b)
+            if not 0.0 <= rate <= 1.0:
+                raise ValueError(f"Invalid two-qubit gate error rate: {rate}")
+            edge_risk_cache[edge] = (
+                float("inf") if rate == 1.0 else -math.log1p(-rate)
+            )
+        return edge_risk_cache[edge]
 
-        physical_1 = final_mapping[interaction.qubit_1]
-        physical_2 = final_mapping[interaction.qubit_2]
-        path = topology.path_matrix[physical_1][physical_2]
-        if not path:
+    path_cache: dict[
+        tuple[int, int],
+        tuple[dict[int, tuple[float, int]], dict[int, int]],
+    ] = {}
+
+    def shortest_swap_paths(
+        origin: int,
+        blocked: int,
+    ) -> tuple[dict[int, tuple[float, int]], dict[int, int]]:
+        cache_key = (origin, blocked)
+        if cache_key in path_cache:
+            return path_cache[cache_key]
+
+        distances = {origin: (0.0, 0)}
+        previous: dict[int, int] = {}
+        pending = [(0.0, 0, origin)]
+        while pending:
+            risk, hops, physical = heapq.heappop(pending)
+            if (risk, hops) != distances[physical]:
+                continue
+            for neighbor in sorted(physical_neighbors[physical]):
+                if neighbor == blocked:
+                    continue
+                candidate = (risk + 3.0 * link_risk(physical, neighbor), hops + 1)
+                previous_distance = distances.get(neighbor)
+                if previous_distance is not None and candidate >= previous_distance:
+                    continue
+                distances[neighbor] = candidate
+                previous[neighbor] = physical
+                heapq.heappush(pending, (candidate[0], candidate[1], neighbor))
+
+        result = (distances, previous)
+        path_cache[cache_key] = result
+        return result
+
+    def route_options(
+        placement: tuple[int, ...],
+        interaction: CircuitEdge,
+    ) -> list[tuple[tuple[int, ...], float, int]]:
+        logical_1 = interaction.qubit_1
+        logical_2 = interaction.qubit_2
+        physical_1 = placement[logical_1]
+        physical_2 = placement[logical_2]
+        physical_to_logical = {
+            physical: logical for logical, physical in enumerate(placement)
+        }
+        options: dict[tuple[int, ...], tuple[float, int]] = {}
+
+        def add_direction(origin: int, blocked: int) -> None:
+            distances, previous = shortest_swap_paths(origin, blocked)
+            for adjacent in sorted(physical_neighbors[blocked]):
+                if adjacent not in distances:
+                    continue
+                path = [adjacent]
+                while path[-1] != origin:
+                    path.append(previous[path[-1]])
+                path.reverse()
+
+                next_placement = list(placement)
+                next_physical_to_logical = physical_to_logical.copy()
+                for physical_a, physical_b in zip(path, path[1:]):
+                    logical_a = next_physical_to_logical.pop(physical_a, None)
+                    logical_b = next_physical_to_logical.pop(physical_b, None)
+                    if logical_b is not None:
+                        next_placement[logical_b] = physical_a
+                        next_physical_to_logical[physical_a] = logical_b
+                    if logical_a is not None:
+                        next_placement[logical_a] = physical_b
+                        next_physical_to_logical[physical_b] = logical_a
+
+                added_risk = distances[adjacent][0] + link_risk(
+                    next_placement[logical_1],
+                    next_placement[logical_2],
+                )
+                next_placement_tuple = tuple(next_placement)
+                score = (added_risk, len(path) - 1)
+                previous_score = options.get(next_placement_tuple)
+                if previous_score is None or score < previous_score:
+                    options[next_placement_tuple] = score
+
+        add_direction(physical_1, physical_2)
+        add_direction(physical_2, physical_1)
+        if not options:
             raise ValueError("Interacting qubits are disconnected in the topology")
+        return [
+            (next_placement, risk, swaps)
+            for next_placement, (risk, swaps) in options.items()
+        ]
 
-        for index in range(len(path) - 2):
-            physical_a = path[index]
-            physical_b = path[index + 1]
-            logical_a = physical_to_logical.get(physical_a)
-            logical_b = physical_to_logical.get(physical_b)
+    total_log_risk = 0.0
+    swap_count = 0
+    for operation_index, interaction in enumerate(operations):
+        beam = [(current_mapping, total_log_risk, swap_count, None, 0.0, 0)]
+        lookahead = operations[
+            operation_index : operation_index + _ROUTING_LOOKAHEAD
+        ]
+        for future_interaction in lookahead:
+            expanded = []
+            for (
+                placement,
+                cumulative_risk,
+                cumulative_swaps,
+                first_mapping,
+                first_risk,
+                first_swaps,
+            ) in beam:
+                for next_placement, added_risk, added_swaps in route_options(
+                    placement,
+                    future_interaction,
+                ):
+                    expanded.append(
+                        (
+                            next_placement,
+                            cumulative_risk + added_risk,
+                            cumulative_swaps + added_swaps,
+                            next_placement if first_mapping is None else first_mapping,
+                            added_risk if first_mapping is None else first_risk,
+                            added_swaps if first_mapping is None else first_swaps,
+                        )
+                    )
+            beam = sorted(
+                expanded,
+                key=lambda state: (state[1], state[2]),
+            )[:_ROUTING_BEAM_WIDTH]
 
-            if logical_a is not None:
-                final_mapping[logical_a] = physical_b
-            if logical_b is not None:
-                final_mapping[logical_b] = physical_a
-            physical_to_logical.pop(physical_a, None)
-            physical_to_logical.pop(physical_b, None)
-            if logical_b is not None:
-                physical_to_logical[physical_a] = logical_b
-            if logical_a is not None:
-                physical_to_logical[physical_b] = logical_a
-            swap_gate_error = link_error_rate(physical_a, physical_b)
-            success_probability *= (1.0 - swap_gate_error) ** 3
-            swap_count += 1
-
-        interaction_error = link_error_rate(
-            final_mapping[interaction.qubit_1],
-            final_mapping[interaction.qubit_2],
-        )
-        success_probability *= 1.0 - interaction_error
+        best_state = min(beam, key=lambda state: (state[1], state[2]))
+        current_mapping = best_state[3]
+        total_log_risk += best_state[4]
+        swap_count += best_state[5]
 
     return RoutingResult(
         swap_count=swap_count,
-        expected_error_rate=1.0 - success_probability,
-        final_mapping=final_mapping,
+        expected_error_rate=-math.expm1(-total_log_risk),
+        final_mapping=dict(zip(logical_qubits, current_mapping)),
     )
 
 

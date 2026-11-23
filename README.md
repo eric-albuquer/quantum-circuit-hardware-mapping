@@ -396,7 +396,7 @@ exists and the mapping flow raises an error.
 
 Let \(\mathcal{M}\) be the set of all injective placements, \(m(i)\) the
 physical qubit assigned to logical qubit \(i\), and \(\mathcal{R}(m)\) the
-routed gate sequence produced by the current ordered shortest-risk-path
+routed gate sequence produced by the ordered bounded-lookahead routing
 policy for initial placement \(m\). If \(p_g\) is the modeled error rate of
 routed two-qubit gate \(g\), define:
 
@@ -438,15 +438,28 @@ answer is selected from routed hill-climb results and preserved starts using
 
 `route_circuit(circuit, topology, mapping)` processes each operation in
 `fpga` order, because a SWAP changes where later logical operands reside. For
-an operation whose current physical operands are the endpoints of the
-precomputed path
-`[v0, v1, ..., v(d)]`, the router inserts `d - 1` SWAPs along the first
-operand's path prefix (`v0-v1` through `v(d-2)-v(d-1)`). The operands are then
-adjacent on the final link `v(d-1)-v(d)`, where the circuit operation is
-applied. If the operands were already adjacent, no SWAP is needed. A SWAP
-exchanges the logical occupants of its two physical endpoints; the
-logical-to-physical mapping is updated before processing the next operation.
-An unused physical qubit can receive a logical state during this process.
+each interaction, the router considers moving either logical operand through
+the undirected hardware links until it is adjacent to the other. It
+scores a SWAP edge as three two-qubit gate error exposures and the interaction
+edge as one exposure. In negative-log-success units, a route has cost
+
+$$
+C_{\mathrm{route}} =
+3\sum_{e\in\mathrm{SWAPs}}-\ln(1-p_e)
+-\ln(1-p_{\mathrm{interaction}}).
+$$
+
+The router uses Dijkstra searches for the SWAP portions and compares candidate
+routes by total modeled error, then SWAP count. It uses a deterministic beam
+search with a three-interaction lookahead and beam width eight, committing
+only the first routing decision before searching ahead again. This bounded
+lookahead can prefer a route that makes later operations cheaper; it is a
+heuristic and does not guarantee a globally optimal sequence of SWAPs. Ties
+are resolved deterministically by operand movement order and sorted physical
+neighbors. A SWAP exchanges the logical occupants of its physical endpoints;
+the logical-to-physical mapping is updated before processing later
+interactions. An unused physical qubit can receive a logical state during
+this process.
 
 The error calculation assumes independent two-qubit gate failures and uses
 the same link rate \(p\) for every two-qubit gate executed on that link. Each
@@ -461,7 +474,8 @@ P_{\mathrm{success}}=\prod_{g=1}^{r}(1-p_g),
 E_{\mathrm{route}}=1-P_{\mathrm{success}}.
 $$
 
-The product is accumulated as execution proceeds. Here, “expected error rate”
+The router accumulates negative-log success to avoid numerical underflow and
+converts it to error probability at the end. Here, “expected error rate”
 is a probability-style proxy under the stated independent-gate model, not an
 empirically calibrated prediction of a processor's output quality. The
 synthetic dataset's two-qubit gate rates are sampled from a clipped log-normal
@@ -481,8 +495,8 @@ implementations or gate-specific error rates.
 #### Exact placement search
 
 `optimal_map` enumerates all `P(n,k)` injective placements using depth-first
-search. Each complete placement is passed through the ordered router and
-scored lexicographically by:
+search. Each complete placement is passed through the bounded-lookahead router
+and scored lexicographically by:
 
 1. routed `expected_error_rate`,
 2. routed SWAP count,
@@ -492,10 +506,10 @@ The last criterion makes ties deterministic. The search can partition work by
 the first logical qubit's physical assignment and run these independent
 prefixes in a `ProcessPoolExecutor`; `max_workers=1` runs sequentially. This
 is exhaustive over **initial placements**, not over every possible sequence
-of routing decisions: each placement is routed by the single path/SWAP policy
-described above. Its work grows at least proportionally to `P(n,k)` times the
-cost of routing one circuit, so exhaustive search quickly becomes impractical
-as the number of available physical qubits grows.
+of routing decisions: each placement is routed by the bounded beam-search
+policy described above. Its work grows at least proportionally to `P(n,k)`
+times the cost of routing one circuit, so exhaustive search quickly becomes
+impractical as the number of available physical qubits grows.
 
 #### Heuristic placement search
 
