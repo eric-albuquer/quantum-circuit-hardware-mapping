@@ -81,6 +81,18 @@ python -m analysis.benchmark_mappers
 python -m streamlit run analysis/streamlit_app.py
 ```
 
+For a faster refresh after routing changes, precompute the four key circuit
+families at four logical qubits across all six topology families, without the
+expensive exact-search baseline:
+
+```powershell
+python -m analysis.benchmark_mappers --qubit-count 4 --topology-family line --topology-family ring --topology-family full --topology-family grid --topology-family heavy_hex --topology-family heavy_square --runs 5 --exact-max-qubits 0 --max-exact-placements 0
+```
+
+This reduced dataset contains 24 circuit/topology cases and five runs each for
+multi-start, min-cost flow plus hill climbing, and Qiskit SABRE. The full
+default matrix remains available by omitting the selection options.
+
 The default benchmark covers 120 cases: GHZ, modular-adder, QFT, and QAOA
 circuits at four, six, eight, ten, and twelve qubits, paired with `line`,
 `ring`, `full`, `grid`, `heavy_hex`, and `heavy_square` topologies. Line, ring,
