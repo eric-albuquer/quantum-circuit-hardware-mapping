@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import math
 import subprocess
 import sys
 import time
 from pathlib import Path
 
+import altair as alt
 import pandas as pd
 import streamlit as st
 
@@ -339,25 +341,30 @@ def _show_graph_metrics(details: dict[str, object]) -> None:
             ["Qubits lógicos", "Qubits físicos", "Matrizes"]
         )
         with logical_tab:
-            st.dataframe(
-                details["logical_qubits"],
-                width="stretch",
-                hide_index=True,
-            )
-            degree_column, interactions_column = st.columns(2)
+            degree_column, interactions_column = st.columns(2, gap="large")
             with degree_column:
-                st.bar_chart(
+                st.markdown("**Grau (vizinhos distintos)**")
+                _bar_chart(
                     details["logical_qubits"],
                     x="Qubit lógico",
                     y="Grau",
-                    height=280,
+                    height=220,
+                    bar_color=LIGHT_BLUE,
+                    value_axis=True,
+                    axis_color=QUBIT_AXIS_GRAY,
+                    axis_line_color=QUBIT_AXIS_LINE_GRAY,
                 )
             with interactions_column:
-                st.bar_chart(
+                st.markdown("**Interações de 2 qubits**")
+                _bar_chart(
                     details["logical_qubits"],
                     x="Qubit lógico",
                     y="Interações de 2 qubits",
-                    height=280,
+                    height=220,
+                    bar_color=DARK_BLUE,
+                    value_axis=True,
+                    axis_color=QUBIT_AXIS_GRAY,
+                    axis_line_color=QUBIT_AXIS_LINE_GRAY,
                 )
             st.markdown("#### Pares de interação")
             st.dataframe(
@@ -366,26 +373,27 @@ def _show_graph_metrics(details: dict[str, object]) -> None:
                 hide_index=True,
             )
         with physical_tab:
-            st.dataframe(
-                details["physical_qubits"],
-                width="stretch",
-                hide_index=True,
-            )
             physical_metrics = (
                 "Grau",
                 "Erro adjacente médio (%)",
                 "Distância média",
                 "Erro médio dos caminhos (%)",
             )
-            metric_tabs = st.tabs(list(physical_metrics))
-            for tab, column in zip(metric_tabs, physical_metrics):
-                with tab:
-                    st.bar_chart(
-                        details["physical_qubits"],
-                        x="Qubit físico",
-                        y=column,
-                        height=300,
-                    )
+            chart_column, _ = st.columns(2, gap="large")  # mesma largura de antes
+            with chart_column:
+                metric_tabs = st.tabs(list(physical_metrics))
+                for tab, column in zip(metric_tabs, physical_metrics):
+                    with tab:
+                        _bar_chart(
+                            details["physical_qubits"],
+                            x="Qubit físico",
+                            y=column,
+                            height=300,
+                            bar_color=LIGHT_BLUE,
+                            value_axis=True,
+                            axis_color=QUBIT_AXIS_GRAY,
+                            axis_line_color=QUBIT_AXIS_LINE_GRAY,
+                        )
         with matrix_tab:
             matrix_tabs = st.tabs(
                 [
@@ -421,32 +429,281 @@ def _show_figures(names: tuple[str, ...]) -> None:
             column.info("Visualização indisponível. Gere os grafos novamente.")
 
 
-# [IA] Claude Code (Claude Opus 5.5) – tabela de resumo com nomes de coluna em português
-def _summary_by_mapper(results: pd.DataFrame) -> pd.DataFrame:
-    summary = results.groupby("algorithm", as_index=False).agg(
-        runs=("run", "count"),
-        tempo_mediano_s=("elapsed_seconds", "median"),
-        swaps_medianos=("swap_count", "median"),
-        erro_estimado_mediano=("expected_error_rate", "median"),
+LIGHT_BLUE = "#8EC5F0"
+QUBIT_AXIS_GRAY = "#6B7280"
+QUBIT_AXIS_LINE_GRAY = "#9CA3AF"
+DARK_BLUE = "#1D4E89"
+SABRE_GRAY = "#9AA0A6"
+METHOD_COLORS = {
+    "Busca exata": "#F58518",
+    "Multi-start": LIGHT_BLUE,
+    "Fluxo min-cost": "#4C78A8",
+    "Qiskit SABRE": SABRE_GRAY,
+}
+FALLBACK_COLOR = "#72B7B2"
+VALUE_LABEL_COLOR = "black"
+
+
+def _method_color_scale(methods) -> alt.Scale:
+    """Cor fixa por método: Multi-start em azul claro e SABRE em cinza."""
+    domain = list(dict.fromkeys(methods))
+    colors = [METHOD_COLORS.get(method, FALLBACK_COLOR) for method in domain]
+    return alt.Scale(domain=domain, range=colors)
+
+
+# [IA] Claude Code (Claude Sonnet 5.5) – gráfico de barras com valores sobre as barras e rótulos horizontais
+MAX_LABELLED_BARS = 40  # acima disso os valores se sobrepõem e são omitidos (ficam no tooltip)
+
+
+def _bar_chart(
+    data: pd.DataFrame,
+    x: str,
+    y: str,
+    color: str | None = None,
+    height: int = 300,
+    bar_gap: float = 0.1,
+    bar_color: str | None = None,
+    horizontal: bool = False,
+    sort_by_value: bool = False,
+    color_scale: alt.Scale | None = None,
+    max_labelled: int = MAX_LABELLED_BARS,
+    value_axis: bool = False,
+    axis_color: str = VALUE_LABEL_COLOR,
+    axis_line_color: str = "#374151",
+) -> None:
+    """Barras com o valor escrito na ponta de cada uma.
+
+    ``x`` é a coluna de categorias e ``y`` a de valores. Não há eixo de valores
+    nem grade, pois o número está na barra; o eixo de categorias mantém só os
+    nomes, sem título, marcas nem linha.
+
+    ``bar_gap`` é a fração de espaço entre as barras (maior = barras mais
+    finas) e ``bar_color`` fixa a cor quando não há ``color``. Com ``color`` as
+    barras ficam agrupadas, uma por categoria de cor. Com ``horizontal`` as
+    categorias ficam no eixo vertical e as barras crescem para a direita. Com
+    muitas barras os valores são omitidos para não se sobreporem; eles
+    continuam no tooltip (o limite é ``max_labelled``). Com ``sort_by_value``
+    as categorias ficam do maior para o menor valor. ``color_scale`` fixa as
+    cores de cada valor de ``color``. Com ``value_axis`` o eixo dos valores
+    aparece só com os números e as duas linhas de borda (esquerda e base), sem grade nem marcas.
+    ``axis_color`` e ``axis_line_color`` colorem os números e as linhas dos eixos.
+    """
+    category_axis = alt.Axis(
+        labelAngle=0,
+        labelOverlap="greedy",
+        ticks=False,
+        domain=value_axis,  # com eixo de valores, a linha de base também aparece
+        domainColor=axis_line_color,
+        labelColor=axis_color,
     )
-    summary["erro_estimado_mediano"] *= 100
-    return summary.rename(
-        columns={
-            "algorithm": "Algoritmo",
-            "runs": "Execuções",
-            "swaps_medianos": "SWAPs medianos",
-            "tempo_mediano_s": "Tempo mediano (s)",
-            "erro_estimado_mediano": "Erro estimado mediano (%)",
-        }
-    )[
-        [
-            "Algoritmo",
-            "Execuções",
-            "SWAPs medianos",
-            "Erro estimado mediano (%)",
-            "Tempo mediano (s)",
+    # Ordem explícita (maior primeiro): a ordenação por canal do Altair ("-x")
+    # não foi aplicada de forma confiável quando o gráfico tem camada de texto.
+    category_order = (
+        data.groupby(x, sort=False)[y].max().sort_values(ascending=False).index.tolist()
+        if sort_by_value
+        else None
+    )
+    category_scale = alt.Scale(paddingInner=bar_gap, paddingOuter=0.05)
+    if value_axis:
+        integer_values = bool((data[y] == data[y].round()).all())
+        axis_options = {"tickMinStep": 1} if integer_values else {}
+        value_axis_encoding = alt.Axis(
+            title=None,
+            grid=False,
+            domain=True,
+            domainColor=axis_line_color,
+            ticks=False,
+            labelColor=axis_color,
+            **axis_options,
+        )
+    else:
+        value_axis_encoding = None
+    value_encoding_args = {
+        "axis": value_axis_encoding,
+        "scale": alt.Scale(domainMax=max(float(data[y].max()) * 1.18, 1e-12)),
+    }
+    category_channel, value_channel = ("y", "x") if horizontal else ("x", "y")
+    offset_channel = "yOffset" if horizontal else "xOffset"
+    category_class = alt.Y if horizontal else alt.X
+    value_class = alt.X if horizontal else alt.Y
+    offset_class = alt.YOffset if horizontal else alt.XOffset
+
+    encodings: dict[str, object] = {
+        category_channel: category_class(
+            f"{x}:N", title=None, sort=category_order, axis=category_axis,
+            scale=category_scale,
+        ),
+        value_channel: value_class(f"{y}:Q", **value_encoding_args),
+        "tooltip": [x, y] + ([color] if color else []),
+    }
+    if color:
+        if color_scale is None:
+            color_scale = (
+                _method_color_scale(data[color])
+                if color == "Método"
+                else alt.Undefined
+            )
+        encodings["color"] = alt.Color(
+            f"{color}:N", title=color, scale=color_scale
+        )
+        # Só agrupa em subbarras quando a cor é diferente da categoria; se for a
+        # mesma, uma barra por categoria ocupa a faixa toda e fica alinhada ao nome.
+        if color != x:
+            encodings[offset_channel] = offset_class(
+                f"{color}:N", scale=alt.Scale(paddingInner=0.05)
+            )
+    mark_options = {"color": bar_color} if bar_color and not color else {}
+    bars = alt.Chart(data).mark_bar(**mark_options).encode(**encodings)
+    layers = [bars]
+    if len(data) <= max_labelled:
+        if horizontal:
+            text_mark = bars.mark_text(
+                align="left", baseline="middle", dx=4, fontSize=11,
+                color=VALUE_LABEL_COLOR,
+            )
+        else:
+            text_mark = bars.mark_text(
+                align="center", baseline="bottom", dy=-3, fontSize=11,
+                color=VALUE_LABEL_COLOR,
+            )
+        # O texto herda a cor da barra; fixa a cor para os valores ficarem pretos.
+        layers.append(
+            text_mark.encode(
+                text=alt.Text(f"{y}:Q", format=".3~g"),
+                color=alt.value(VALUE_LABEL_COLOR),
+            )
+        )
+    st.altair_chart(
+        alt.layer(*layers).properties(height=height),
+        width="stretch",
+    )
+
+
+# [IA] Claude Code (Claude Sonnet 5.5) – matriz de desempenho (SWAPs × erro) com quadrantes
+QUADRANT_LABEL_COLOR = "#6B7280"
+
+
+def _star_path(points: int = 5, inner_ratio: float = 0.42) -> str:
+    """Caminho SVG de uma estrela num quadrado de -1 a 1, como o Vega espera."""
+    vertices = []
+    for index in range(points * 2):
+        radius = 1.0 if index % 2 == 0 else inner_ratio
+        angle = -math.pi / 2 + index * math.pi / points
+        vertices.append(f"{radius * math.cos(angle):.3f},{radius * math.sin(angle):.3f}")
+    return "M" + "L".join(vertices) + "Z"
+
+
+# Formato do ponto de cada método na matriz de desempenho.
+METHOD_SHAPES = {
+    "Fluxo min-cost": "circle",
+    "Multi-start": _star_path(),
+    "Qiskit SABRE": "triangle-up",
+    "Busca exata": "square",
+}
+
+
+def _method_shape_scale(methods) -> alt.Scale:
+    domain = list(dict.fromkeys(methods))
+    return alt.Scale(
+        domain=domain,
+        range=[METHOD_SHAPES.get(method, "diamond") for method in domain],
+    )
+
+
+def _padded_domain(values: pd.Series) -> tuple[float, float]:
+    """Intervalo do eixo com folga, para os pontos não colarem nas bordas."""
+    low, high = float(values.min()), float(values.max())
+    pad = max((high - low) * 0.25, abs(high) * 0.05, 0.5 if high == low else 0.0)
+    return max(low - pad, 0.0), high + pad
+
+
+def _quadrant_matrix(summary: pd.DataFrame) -> None:
+    """Um ponto por método: SWAPs (x) × erro estimado (y), dividido na média.
+
+    O quadrante inferior esquerdo reúne os métodos com menos SWAPs e menos erro
+    que a média dos métodos comparados.
+    """
+    x_label, y_label = CHART_METRICS[0], CHART_METRICS[1]
+    data = summary[["Método", x_label, y_label]].copy()
+    x_low, x_high = _padded_domain(data[x_label])
+    y_low, y_high = _padded_domain(data[y_label])
+    x_mid, y_mid = float(data[x_label].mean()), float(data[y_label].mean())
+
+    axis_style = {"labelColor": VALUE_LABEL_COLOR, "titleColor": VALUE_LABEL_COLOR}
+    x_encoding = alt.X(
+        f"{x_label}:Q",
+        scale=alt.Scale(domain=[x_low, x_high], nice=False),
+        axis=alt.Axis(grid=True, gridColor="#E5E7EB", tickMinStep=1, **axis_style),
+    )
+    y_encoding = alt.Y(
+        f"{y_label}:Q",
+        scale=alt.Scale(domain=[y_low, y_high], nice=False),
+        axis=alt.Axis(grid=True, gridColor="#E5E7EB", **axis_style),
+    )
+    color_encoding = alt.Color(
+        "Método:N",
+        scale=_method_color_scale(data["Método"]),
+        legend=None,
+    )
+    points = (
+        alt.Chart(data)
+        .mark_point(filled=True, size=320, opacity=1)
+        .encode(
+            x=x_encoding,
+            y=y_encoding,
+            color=color_encoding,
+            shape=alt.Shape(
+                "Método:N",
+                scale=_method_shape_scale(data["Método"]),
+                legend=None,
+            ),
+            tooltip=["Método", x_label, y_label],
+        )
+    )
+    names = (
+        alt.Chart(data)
+        .mark_text(align="left", dx=12, fontSize=12, color=VALUE_LABEL_COLOR)
+        .encode(x=x_encoding, y=y_encoding, text="Método:N")
+    )
+    cross = alt.layer(
+        alt.Chart(pd.DataFrame({"v": [x_mid]})).mark_rule(color="#1F2937").encode(
+            x=alt.X("v:Q", axis=None, scale=alt.Scale(domain=[x_low, x_high], nice=False))
+        ),
+        alt.Chart(pd.DataFrame({"v": [y_mid]})).mark_rule(color="#1F2937").encode(
+            y=alt.Y("v:Q", axis=None, scale=alt.Scale(domain=[y_low, y_high], nice=False))
+        ),
+    )
+    corners = (
+        (x_low, y_low, "left", "bottom", ["Melhores", "poucos SWAPs, erro baixo"]),
+        (x_low, y_high, "left", "top", ["Poucos SWAPs,", "erro alto"]),
+        (x_high, y_low, "right", "bottom", ["Muitos SWAPs,", "erro baixo"]),
+        (x_high, y_high, "right", "top", ["Piores", "muitos SWAPs, erro alto"]),
+    )
+    quadrant_labels = alt.layer(
+        *[
+            alt.Chart(pd.DataFrame({"x": [cx], "y": [cy]}))
+            .mark_text(
+                align=align,
+                baseline=baseline,
+                dx=6 if align == "left" else -6,
+                dy=-6 if baseline == "bottom" else 6,
+                fontStyle="italic",
+                fontSize=12,
+                color=QUADRANT_LABEL_COLOR,
+                lineBreak="\n",
+            )
+            .encode(
+                x=alt.X("x:Q", axis=None, scale=alt.Scale(domain=[x_low, x_high], nice=False)),
+                y=alt.Y("y:Q", axis=None, scale=alt.Scale(domain=[y_low, y_high], nice=False)),
+                text=alt.value("\n".join(text)),
+            )
+            for cx, cy, align, baseline, text in corners
         ]
-    ]
+    )
+    st.altair_chart(
+        alt.layer(cross, quadrant_labels, points, names).properties(height=360),
+        width="stretch",
+    )
 
 
 # [IA] Claude Code (Claude Opus 5.5) – gráficos padronizados de SWAPs, erro e tempo
@@ -454,6 +711,8 @@ def _show_metric_charts(
     data: pd.DataFrame,
     x_axis: str,
     chart: str = "bar",
+    horizontal: bool = False,
+    sort_by_value: bool = False,
 ) -> None:
     """Mostra SWAPs, erro e tempo em abas com o mesmo formato."""
     chart_tabs = st.tabs(list(CHART_METRICS))
@@ -462,13 +721,14 @@ def _show_metric_charts(
             if chart == "line":
                 st.line_chart(data, x=x_axis, y=label, color="Método", height=360)
             else:
-                st.bar_chart(
+                _bar_chart(
                     data,
                     x=x_axis,
                     y=label,
                     color="Método",
-                    stack=False,
-                    height=360,
+                    height=360 if not horizontal else 30 + 52 * len(data),
+                    horizontal=horizontal,
+                    sort_by_value=sort_by_value,
                 )
 
 
@@ -528,12 +788,25 @@ def _show_mapping_results(results: pd.DataFrame) -> None:
         )
         return
 
-    st.markdown("#### Resumo por algoritmo")
-    st.dataframe(_summary_by_mapper(results), width="stretch", hide_index=True)
-
-    st.markdown("#### Comparação visual")
-    st.caption("Medianas das execuções; valores menores são melhores.")
-    _show_metric_charts(_median_metrics(results, ["algorithm"]), "Método")
+    summary = _median_metrics(results, ["algorithm"])
+    chart_column, matrix_column = st.columns(2, gap="large")
+    with chart_column:
+        st.markdown("#### Comparação visual")
+        st.caption("Medianas das execuções; valores menores são melhores.")
+        _show_metric_charts(
+            summary,
+            "Método",
+            horizontal=True,
+            sort_by_value=True,
+        )
+    with matrix_column:
+        st.markdown("#### Matriz de desempenho")
+        st.caption(
+            "SWAPs × erro estimado (medianas). As linhas marcam a média dos "
+            "métodos comparados; quanto mais perto do canto inferior esquerdo, "
+            "melhor."
+        )
+        _quadrant_matrix(summary)
 
     st.markdown("#### Melhor mapeamento por algoritmo")
     st.caption(
@@ -999,10 +1272,10 @@ with tab_case:
         topology_path.stat().st_mtime,
     )
 
-    _section("Métricas dos grafos")
+    st.divider()
     _show_graph_metrics(graph_details)
 
-    _section("Visualização dos grafos")
+    st.divider()
     if st.button("Gerar grafos para este caso"):
         with st.spinner("Gerando os grafos do circuito e da topologia..."):
             generate(
@@ -1040,12 +1313,14 @@ with tab_case:
             "medição em hardware real. Cada SWAP conta como três portas de dois "
             "qubits."
         )
-        selected_methods = _select_algorithms(
-            sorted(benchmarks["algorithm"].dropna().unique())
-            if not benchmarks.empty
-            else [],
-            "case_method",
-        )
+        methods_column, _ = st.columns(2, gap="large")  # alinhado à metade da página
+        with methods_column:
+            selected_methods = _select_algorithms(
+                sorted(benchmarks["algorithm"].dropna().unique())
+                if not benchmarks.empty
+                else [],
+                "case_method",
+            )
         case_results = benchmarks
         if not benchmarks.empty:
             case_results = benchmarks[
