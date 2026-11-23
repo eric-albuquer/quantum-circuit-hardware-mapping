@@ -48,6 +48,17 @@ def generate_algorithm_interaction_dataset(
             continue
 
         rows = rows_by_algorithm_and_qubit_count[algorithm][qubit_count]
+        for qubit in range(qubit_count):
+            rows.append(
+                {
+                    "algorithm": algorithm,
+                    "circuit": circuit_path.stem,
+                    "num_qubits": qubit_count,
+                    "qubit_1": qubit,
+                    "qubit_2": qubit,
+                    "interaction_count": int(matrix[qubit, qubit]),
+                }
+            )
         for first in range(qubit_count):
             for second in range(first + 1, qubit_count):
                 rows.append(

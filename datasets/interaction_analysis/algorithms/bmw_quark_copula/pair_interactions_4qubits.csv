@@ -1,4 +1,8 @@
 algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+bmw_quark_copula,bmw_quark_copula_4qubits,4,0,0,7
+bmw_quark_copula,bmw_quark_copula_4qubits,4,1,1,7
+bmw_quark_copula,bmw_quark_copula_4qubits,4,2,2,6
+bmw_quark_copula,bmw_quark_copula_4qubits,4,3,3,6
 bmw_quark_copula,bmw_quark_copula_4qubits,4,0,1,2
 bmw_quark_copula,bmw_quark_copula_4qubits,4,0,2,1
 bmw_quark_copula,bmw_quark_copula_4qubits,4,0,3,0

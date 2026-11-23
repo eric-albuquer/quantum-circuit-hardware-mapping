@@ -812,35 +812,37 @@ datasets/interaction_analysis/algorithms/random/pair_interactions_4qubits.csv
 | `algorithm` | Benchmark folder / algorithm identifier. |
 | `circuit` | Circuit filename without the `.qasm` extension. |
 | `num_qubits` | Number of logical qubits in the circuit. |
-| `qubit_1`, `qubit_2` | Unordered logical-qubit pair, with `qubit_1 < qubit_2`. |
-| `interaction_count` | Number of two-qubit instructions involving that pair. |
+| `qubit_1`, `qubit_2` | Unordered pair; self-pairs have equal qubit indices. |
+| `interaction_count` | One-qubit instruction count for self-pairs; otherwise the two-qubit instruction count. |
 
 This is a logical interaction summary, not a physical mapping result. It
 counts all two-qubit instruction types together, ignores gate direction and
 operation order, and does not model multi-qubit gates as pairwise interactions.
-The diagonal/self-pairs are not included.
+One-qubit gates such as Hadamard are counted on the matrix diagonal as
+self-pairs.
 
 ### Ordered interaction edge lists
 
-Generate a per-circuit edge list that retains the order of two-qubit
+Generate a per-circuit edge list that retains the order of one- and two-qubit
 operations:
 
 ```powershell
 python -m analysis.generate_ordered_interactions
 ```
 
-Each two-qubit instruction is a separate row in
+Each one- or two-qubit instruction is a separate row in
 `datasets/interaction_order/algorithms/<algorithm>/<circuit>_ordered_interactions.csv`.
-Repeated edges are preserved. Multi-qubit custom gates are expanded into
+Single-qubit instructions use the same qubit in both qubit columns. Repeated
+instructions are preserved. Multi-qubit custom gates are expanded into
 their defined instructions; each resulting interaction keeps the index of
 the original circuit instruction. `interaction_index` gives the zero-based
-order among two-qubit operations; `instruction_index` gives the zero-based
+order among recorded operations; `instruction_index` gives the zero-based
 position in the complete Qiskit circuit. `gate` records the instruction name, and
 `qubit_1` / `qubit_2` retain operand order (important for directed gates such
-as `cx`). Single-qubit instructions, measurements, and barriers are omitted.
-This sequence is suitable as the ordered edge input for constructing a
-dependency graph; it is distinct from the aggregated, undirected pairwise
-interaction summary above.
+as `cx`). Measurements and barriers are omitted. Single-qubit operations
+contribute to per-qubit dependencies, but are not routed as two-qubit gates or
+assigned two-qubit link error. This sequence is distinct from the aggregated,
+undirected pairwise interaction summary above.
 
 ## Quick start
 

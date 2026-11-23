@@ -1,4 +1,17 @@
 algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+vqe_real_amp,vqe_real_amp_13qubits,13,0,0,4
+vqe_real_amp,vqe_real_amp_13qubits,13,1,1,4
+vqe_real_amp,vqe_real_amp_13qubits,13,2,2,4
+vqe_real_amp,vqe_real_amp_13qubits,13,3,3,4
+vqe_real_amp,vqe_real_amp_13qubits,13,4,4,4
+vqe_real_amp,vqe_real_amp_13qubits,13,5,5,4
+vqe_real_amp,vqe_real_amp_13qubits,13,6,6,4
+vqe_real_amp,vqe_real_amp_13qubits,13,7,7,4
+vqe_real_amp,vqe_real_amp_13qubits,13,8,8,4
+vqe_real_amp,vqe_real_amp_13qubits,13,9,9,4
+vqe_real_amp,vqe_real_amp_13qubits,13,10,10,4
+vqe_real_amp,vqe_real_amp_13qubits,13,11,11,4
+vqe_real_amp,vqe_real_amp_13qubits,13,12,12,4
 vqe_real_amp,vqe_real_amp_13qubits,13,0,1,3
 vqe_real_amp,vqe_real_amp_13qubits,13,0,2,0
 vqe_real_amp,vqe_real_amp_13qubits,13,0,3,0

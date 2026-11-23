@@ -1,4 +1,11 @@
 algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+half_adder,half_adder_7qubits,7,0,0,0
+half_adder,half_adder_7qubits,7,1,1,0
+half_adder,half_adder_7qubits,7,2,2,0
+half_adder,half_adder_7qubits,7,3,3,0
+half_adder,half_adder_7qubits,7,4,4,0
+half_adder,half_adder_7qubits,7,5,5,0
+half_adder,half_adder_7qubits,7,6,6,0
 half_adder,half_adder_7qubits,7,0,1,0
 half_adder,half_adder_7qubits,7,0,2,0
 half_adder,half_adder_7qubits,7,0,3,0

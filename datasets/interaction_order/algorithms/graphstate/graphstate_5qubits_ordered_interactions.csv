@@ -1,6 +1,11 @@
 algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
-graphstate,graphstate_5qubits,5,0,3,cz,0,2
-graphstate,graphstate_5qubits,5,1,4,cz,1,2
-graphstate,graphstate_5qubits,5,2,6,cz,0,3
-graphstate,graphstate_5qubits,5,3,8,cz,1,4
-graphstate,graphstate_5qubits,5,4,9,cz,3,4
+graphstate,graphstate_5qubits,5,0,0,h,0,0
+graphstate,graphstate_5qubits,5,1,1,h,1,1
+graphstate,graphstate_5qubits,5,2,2,h,2,2
+graphstate,graphstate_5qubits,5,3,3,cz,0,2
+graphstate,graphstate_5qubits,5,4,4,cz,1,2
+graphstate,graphstate_5qubits,5,5,5,h,3,3
+graphstate,graphstate_5qubits,5,6,6,cz,0,3
+graphstate,graphstate_5qubits,5,7,7,h,4,4
+graphstate,graphstate_5qubits,5,8,8,cz,1,4
+graphstate,graphstate_5qubits,5,9,9,cz,3,4

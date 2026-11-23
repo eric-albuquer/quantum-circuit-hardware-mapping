@@ -1,3 +1,4 @@
 algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
-ghz,ghz_3qubits,3,0,1,cx,2,1
-ghz,ghz_3qubits,3,1,2,cx,1,0
+ghz,ghz_3qubits,3,0,0,h,2,2
+ghz,ghz_3qubits,3,1,1,cx,2,1
+ghz,ghz_3qubits,3,2,2,cx,1,0

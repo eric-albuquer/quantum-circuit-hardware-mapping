@@ -1,4 +1,9 @@
 algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+ghz,ghz_5qubits,5,0,0,0
+ghz,ghz_5qubits,5,1,1,0
+ghz,ghz_5qubits,5,2,2,0
+ghz,ghz_5qubits,5,3,3,0
+ghz,ghz_5qubits,5,4,4,1
 ghz,ghz_5qubits,5,0,1,1
 ghz,ghz_5qubits,5,0,2,0
 ghz,ghz_5qubits,5,0,3,0

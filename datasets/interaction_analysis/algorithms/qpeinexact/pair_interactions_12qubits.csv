@@ -1,4 +1,16 @@
 algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+qpeinexact,qpeinexact_12qubits,12,0,0,2
+qpeinexact,qpeinexact_12qubits,12,1,1,2
+qpeinexact,qpeinexact_12qubits,12,2,2,2
+qpeinexact,qpeinexact_12qubits,12,3,3,2
+qpeinexact,qpeinexact_12qubits,12,4,4,2
+qpeinexact,qpeinexact_12qubits,12,5,5,2
+qpeinexact,qpeinexact_12qubits,12,6,6,2
+qpeinexact,qpeinexact_12qubits,12,7,7,2
+qpeinexact,qpeinexact_12qubits,12,8,8,2
+qpeinexact,qpeinexact_12qubits,12,9,9,2
+qpeinexact,qpeinexact_12qubits,12,10,10,2
+qpeinexact,qpeinexact_12qubits,12,11,11,1
 qpeinexact,qpeinexact_12qubits,12,0,1,1
 qpeinexact,qpeinexact_12qubits,12,0,2,1
 qpeinexact,qpeinexact_12qubits,12,0,3,1

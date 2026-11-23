@@ -2,10 +2,37 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from analysis.interactions import analyze_ordered_interactions
+from analysis.interactions import analyze_interactions, analyze_ordered_interactions
 
 
 class OrderedInteractionTests(unittest.TestCase):
+    def test_records_single_qubit_gates_as_self_interactions(self):
+        qasm = """\
+OPENQASM 2.0;
+include "qelib1.inc";
+qreg q[2];
+creg c[2];
+h q[0];
+cx q[0],q[1];
+measure q[1] -> c[0];
+"""
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "single_qubit.qasm"
+            path.write_text(qasm, encoding="utf-8")
+
+            qubit_count, interactions = analyze_ordered_interactions(path)
+            _, matrix = analyze_interactions(path)
+
+        self.assertEqual(qubit_count, 2)
+        self.assertEqual(
+            interactions,
+            [
+                (0, 0, "h", 0, 0),
+                (1, 1, "cx", 0, 1),
+            ],
+        )
+        self.assertEqual(matrix.tolist(), [[1, 1], [1, 0]])
+
     def test_expands_multi_qubit_gate_and_preserves_source_instruction_index(self):
         qasm = """\
 OPENQASM 2.0;
@@ -28,8 +55,9 @@ oracle q[0],q[1],q[2];
         self.assertEqual(
             interactions,
             [
-                (0, 1, "cx", 0, 2),
-                (1, 1, "cx", 1, 2),
+                (0, 0, "x", 0, 0),
+                (1, 1, "cx", 0, 2),
+                (2, 1, "cx", 1, 2),
             ],
         )
 

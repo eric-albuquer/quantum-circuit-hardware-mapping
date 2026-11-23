@@ -28,6 +28,10 @@ class CircuitGraph:
         self.qubit_count = edges[0].num_qubits
         self.iteraction_matrix = [[0 for _ in range(self.qubit_count)] for _ in range(self.qubit_count)]
         self.fpga = edges
+        self.operation_count = len(edges)
+        self.two_qubit_interaction_count = sum(
+            edge.qubit_1 != edge.qubit_2 for edge in edges
+        )
 
         self.dependency_graph: dict[CircuitVertice, set[CircuitVertice]] = {}
         dependency_depths: dict[CircuitVertice, int] = {}
@@ -38,7 +42,8 @@ class CircuitGraph:
             q2 = e.qubit_2
 
             self.iteraction_matrix[q1][q2] += 1
-            self.iteraction_matrix[q2][q1] += 1
+            if q1 != q2:
+                self.iteraction_matrix[q2][q1] += 1
 
             v = CircuitVertice(q1, q2, e.gate, e.interaction_index)
             self.dependency_graph[v] = set()
@@ -63,9 +68,17 @@ class CircuitGraph:
 
         self.qubit_degree = []
         self.qubit_interactions = []
-        for row in self.iteraction_matrix:
-            self.qubit_interactions.append(sum(row))
-            self.qubit_degree.append(sum(x > 0 for x in row))
+        for qubit, row in enumerate(self.iteraction_matrix):
+            self.qubit_interactions.append(
+                sum(count for neighbor, count in enumerate(row) if neighbor != qubit)
+            )
+            self.qubit_degree.append(
+                sum(
+                    count > 0
+                    for neighbor, count in enumerate(row)
+                    if neighbor != qubit
+                )
+            )
 
         self.max_qubit_degree = max(self.qubit_degree, default=0)
         self.max_qubit_interactions = max(self.qubit_interactions, default=0)
@@ -75,10 +88,9 @@ class CircuitGraph:
             for logical_2 in range(logical_1 + 1, self.qubit_count)
             if self.iteraction_matrix[logical_1][logical_2] > 0
         ]
-        self.two_qubit_interaction_count = len(edges)
         self.dependency_depth = max(dependency_depths.values(), default=0)
         self.depth_pressure = (
-            (self.dependency_depth - 1) / (self.two_qubit_interaction_count - 1)
-            if self.two_qubit_interaction_count > 1
+            (self.dependency_depth - 1) / (self.operation_count - 1)
+            if self.operation_count > 1
             else 0.0
         )

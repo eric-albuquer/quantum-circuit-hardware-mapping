@@ -1,4 +1,12 @@
 algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+ghz,ghz_8qubits,8,0,0,0
+ghz,ghz_8qubits,8,1,1,0
+ghz,ghz_8qubits,8,2,2,0
+ghz,ghz_8qubits,8,3,3,0
+ghz,ghz_8qubits,8,4,4,0
+ghz,ghz_8qubits,8,5,5,0
+ghz,ghz_8qubits,8,6,6,0
+ghz,ghz_8qubits,8,7,7,1
 ghz,ghz_8qubits,8,0,1,1
 ghz,ghz_8qubits,8,0,2,0
 ghz,ghz_8qubits,8,0,3,0

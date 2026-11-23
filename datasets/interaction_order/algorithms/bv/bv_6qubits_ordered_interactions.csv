@@ -1,3 +1,14 @@
 algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
-bv,bv_6qubits,6,0,6,cz,2,0
-bv,bv_6qubits,6,1,7,cz,4,0
+bv,bv_6qubits,6,0,0,x,0,0
+bv,bv_6qubits,6,1,1,h,1,1
+bv,bv_6qubits,6,2,2,h,2,2
+bv,bv_6qubits,6,3,3,h,3,3
+bv,bv_6qubits,6,4,4,h,4,4
+bv,bv_6qubits,6,5,5,h,5,5
+bv,bv_6qubits,6,6,6,cz,2,0
+bv,bv_6qubits,6,7,7,cz,4,0
+bv,bv_6qubits,6,8,8,h,1,1
+bv,bv_6qubits,6,9,9,h,2,2
+bv,bv_6qubits,6,10,10,h,3,3
+bv,bv_6qubits,6,11,11,h,4,4
+bv,bv_6qubits,6,12,12,h,5,5

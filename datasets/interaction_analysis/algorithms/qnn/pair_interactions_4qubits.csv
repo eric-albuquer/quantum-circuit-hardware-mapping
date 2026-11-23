@@ -1,4 +1,8 @@
 algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+qnn,qnn_4qubits,4,0,0,6
+qnn,qnn_4qubits,4,1,1,6
+qnn,qnn_4qubits,4,2,2,6
+qnn,qnn_4qubits,4,3,3,6
 qnn,qnn_4qubits,4,0,1,1
 qnn,qnn_4qubits,4,0,2,0
 qnn,qnn_4qubits,4,0,3,0
