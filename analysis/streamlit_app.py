@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
+import time
 from pathlib import Path
 
 import pandas as pd
 import streamlit as st
 
 # [IA] Claude Code (Claude Opus 5.5) – importação da página de apresentação
+from analysis.labels import dataset_label
 from analysis.presentation import (
     show_comparative_summary,
     show_eda,
@@ -48,6 +52,8 @@ ALGORITHM_OPTIONS = (
 SHORT_NAMES = {
     algorithm: label for algorithm, label, _ in ALGORITHM_OPTIONS
 }
+# [IA] Claude Code (Claude Sonnet 5.5) – limite de tamanho para execução ao vivo
+LIVE_WORK_LIMIT = 500  # qubits lógicos × qubits físicos; acima disso o multi-start passa de ~12 s por execução
 CHART_METRICS = ("SWAPs medianos", "Erro estimado mediano (%)", "Tempo mediano (s)")
 REQUIRED_METRIC_COLUMNS = {
     "interacoes_dois_qubits",
@@ -261,6 +267,15 @@ def _load_graph_details(
     }
 
 
+def _labelled(table: pd.DataFrame, columns: tuple[str, ...]) -> pd.DataFrame:
+    """Cópia da tabela com nomes de datasets legíveis nas colunas indicadas."""
+    table = table.copy()
+    for column in columns:
+        if column in table:
+            table[column] = table[column].map(dataset_label)
+    return table
+
+
 # [IA] Claude Code (Claude Opus 5.5) – padronização dos títulos de seção
 def _section(title: str) -> None:
     """Abre uma seção com a mesma hierarquia visual da tela inicial."""
@@ -279,7 +294,7 @@ def _show_graph_metrics(details: dict[str, object]) -> None:
     topology = details["topology_summary"]
 
     circuit_column, topology_column = st.columns(2, gap="large")
-    with circuit_column:
+    with circuit_column.container(border=True):
         st.markdown("#### Circuito lógico")
         first_row = st.columns(3)
         first_row[0].metric("Qubits", circuit["qubits"])
@@ -297,7 +312,7 @@ def _show_graph_metrics(details: dict[str, object]) -> None:
             "(0 = paralelizável; 1 = totalmente serial)."
         )
 
-    with topology_column:
+    with topology_column.container(border=True):
         st.markdown("#### Topologia física")
         first_row = st.columns(3)
         first_row[0].metric("Qubits", topology["qubits"])
@@ -465,6 +480,7 @@ def _median_metrics(results: pd.DataFrame, grouping: list[str]) -> pd.DataFrame:
         tempo=("elapsed_seconds", "median"),
     )
     summary["erro"] *= 100
+    summary = _labelled(summary, ("topology_category",))
     summary["Método"] = summary["algorithm"].map(_short_name)
     return summary.rename(
         columns={
@@ -538,6 +554,155 @@ def _show_mapping_results(results: pd.DataFrame) -> None:
         )
 
 
+# [IA] Claude Code (Claude Sonnet 5.5) – chamada do subprocesso que executa os algoritmos
+def _run_case_in_subprocess(
+    circuit_path: Path,
+    topology_path: Path,
+    runs: int,
+    initial_candidates: int,
+    seed: int,
+    max_exact_placements: int,
+    on_progress,
+) -> list[dict[str, object]]:
+    """Roda `analysis.live_run` e devolve os registros, avisando o progresso."""
+    command = [
+        sys.executable, "-m", "analysis.live_run",
+        "--circuit", str(circuit_path),
+        "--topology", str(topology_path),
+        "--runs", str(runs),
+        "--initial-candidates", str(initial_candidates),
+        "--seed", str(seed),
+        "--max-exact-placements", str(max_exact_placements),
+    ]
+    process = subprocess.Popen(
+        command,
+        cwd=ROOT,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    records = None
+    try:
+        for line in process.stdout:
+            message = json.loads(line)
+            if "progress" in message:
+                on_progress(message["progress"], message["total"])
+            elif "records" in message:
+                records = message["records"]
+        _, errors = process.communicate()
+    finally:
+        if process.poll() is None:
+            process.kill()
+    if process.returncode != 0 or records is None:
+        details = (errors or "").strip().splitlines()
+        raise RuntimeError(
+            details[-1] if details else f"o processo terminou com código {process.returncode}"
+        )
+    return records
+
+
+# [IA] Claude Code (Claude Sonnet 5.5) – execução dos quatro métodos na hora, sem usar o CSV pré-computado
+def _show_live_run(
+    circuit_path: Path,
+    topology_path: Path,
+    circuit_name: str,
+    topology_name: str,
+    logical_qubits: int,
+    physical_qubits: int,
+) -> None:
+    st.caption(
+        "Roda agora os quatro métodos no circuito e na topologia escolhidos, "
+        "sem ler o CSV pré-computado. Cada execução usa uma seed diferente "
+        "(seed inicial + número da execução − 1)."
+    )
+    columns = st.columns(4)
+    runs = columns[0].number_input(
+        "Execuções", min_value=1, max_value=20, value=5, key="live_runs",
+        help="Use 5 ou mais para uma média de tempo confiável.",
+    )
+    candidates = columns[1].number_input(
+        "Inícios do multi-start", min_value=1, max_value=200, value=10,
+        key="live_candidates",
+        help="Quanto maior, mais lento é o multi-start.",
+    )
+    seed = columns[2].number_input(
+        "Seed inicial", min_value=0, value=42, key="live_seed"
+    )
+    exact_limit = columns[3].number_input(
+        "Limite da busca exata (placements)", min_value=0, value=100_000,
+        step=10_000, key="live_exact_limit",
+        help="A busca exata só roda se o número de placements couber aqui.",
+    )
+
+    work = logical_qubits * physical_qubits
+    too_large = work > LIVE_WORK_LIMIT
+    allow_large = False
+    if too_large:
+        st.warning(
+            f"Este caso tem {logical_qubits} qubits lógicos e {physical_qubits} "
+            "físicos. O multi-start pode levar vários minutos por execução. "
+            "Para uma resposta rápida, use os resultados pré-computados."
+        )
+        allow_large = st.checkbox(
+            "Executar mesmo assim (pode travar o app por muito tempo)",
+            key="live_allow_large",
+        )
+
+    signature = (
+        circuit_name, topology_name, int(runs), int(candidates), int(seed),
+        int(exact_limit),
+    )
+    if st.button(
+        "Executar os 4 algoritmos agora",
+        disabled=too_large and not allow_large,
+        key="live_run_button",
+    ):
+        progress = st.progress(0.0, text="Preparando a execução...")
+
+        def _update(done: int, total: int) -> None:
+            progress.progress(done / total, text=f"Execução {done} de {total}")
+
+        started = time.perf_counter()
+        try:
+            records = _run_case_in_subprocess(
+                circuit_path,
+                topology_path,
+                int(runs),
+                int(candidates),
+                int(seed),
+                int(exact_limit),
+                _update,
+            )
+        except Exception as error:  # noqa: BLE001 - mostra qualquer falha ao usuário
+            progress.empty()
+            st.error(f"Não foi possível executar os algoritmos: {error}")
+            st.session_state.pop("live_results", None)
+        else:
+            progress.empty()
+            st.session_state["live_results"] = {
+                "signature": signature,
+                "table": pd.DataFrame(records),
+                "seconds": time.perf_counter() - started,
+            }
+
+    live = st.session_state.get("live_results")
+    if not live or live["signature"][:2] != (circuit_name, topology_name):
+        st.caption("Clique em “Executar” para calcular os resultados deste caso.")
+        return
+    table = live["table"]
+    st.success(
+        f"{len(table):,} execuções calculadas em {live['seconds']:.1f} s "
+        f"(seed inicial {live['signature'][4]}, {live['signature'][2]} execuções)."
+    )
+    if "Busca exata" not in set(table["algorithm"]):
+        placements = int(table["possible_mappings"].iloc[0])
+        st.info(
+            f"A busca exata não rodou: este caso tem {placements:,} placements "
+            f"possíveis, acima do limite de {live['signature'][5]:,}."
+        )
+    _show_mapping_results(table)
+
+
 # [IA] Claude Code (Claude Opus 5.5) – título do app em azul
 st.title(":blue[Mapeamento de circuitos quânticos]")
 st.caption(
@@ -604,11 +769,13 @@ with tab_eda:
         circuit_category = st.selectbox(
             "Filtrar tabela de circuitos por categoria",
             ["Todas"] + sorted(circuits["categoria"].dropna().unique()),
+            format_func=dataset_label,
             key="overview_circuit_category",
         )
         topology_category = st.selectbox(
             "Filtrar tabela de topologias por arquitetura",
             ["Todas"] + sorted(topologies["categoria"].dropna().unique()),
+            format_func=dataset_label,
             key="overview_topology_category",
         )
         left, right = st.columns(2)
@@ -622,7 +789,7 @@ with tab_eda:
                 "distintos; pressão de profundidade resume dependências seriais."
             )
             st.dataframe(
-                filtered_circuits[
+                _labelled(filtered_circuits, ("grafo", "categoria"))[
                     [
                         "grafo",
                         "categoria",
@@ -665,7 +832,7 @@ with tab_eda:
                 "Erro e distância são médias do melhor caminho entre qubits; "
                 "densidade e graus descrevem a conectividade física."
             )
-            topology_table = filtered_topologies[
+            topology_table = _labelled(filtered_topologies, ("grafo", "categoria"))[
                 [
                     "grafo",
                     "categoria",
@@ -734,6 +901,7 @@ with tab_case:
                 if "modular_adder" in circuit_categories
                 else 0
             ),
+            format_func=dataset_label,
             key="case_circuit_category",
         )
     category_circuits = circuits[
@@ -762,6 +930,7 @@ with tab_case:
             "Circuito",
             available_circuits,
             index=available_circuits.index(preferred_circuit),
+            format_func=dataset_label,
             key=circuit_key,
         )
 
@@ -781,6 +950,7 @@ with tab_case:
                 if "line" in architecture_categories
                 else 0
             ),
+            format_func=dataset_label,
             key="case_topology_category",
         )
     category_topologies = compatible_topologies[
@@ -799,6 +969,7 @@ with tab_case:
                 if default_topology in topology_options
                 else 0
             ),
+            format_func=dataset_label,
             key=topology_key,
         )
     st.caption(
@@ -859,25 +1030,40 @@ with tab_case:
         )
 
     _section("Resultados dos algoritmos")
-    st.caption(
-        "Erro estimado pelo modelo de taxas sintéticas dos links, não uma "
-        "medição em hardware real. Cada SWAP conta como três portas de dois "
-        "qubits."
+    precomputed_tab, live_tab = st.tabs(
+        ["Resultados pré-computados", "Executar agora"]
     )
-    selected_methods = _select_algorithms(
-        sorted(benchmarks["algorithm"].dropna().unique())
-        if not benchmarks.empty
-        else [],
-        "case_method",
-    )
-    case_results = benchmarks
-    if not benchmarks.empty:
-        case_results = benchmarks[
-            (benchmarks["circuit"] == selected_circuit)
-            & (benchmarks["topology"] == selected_topology)
-            & (benchmarks["algorithm"].isin(selected_methods))
-        ]
-    _show_mapping_results(case_results)
+    topology_summary_qubits = graph_details["topology_summary"]["qubits"]
+    with precomputed_tab:
+        st.caption(
+            "Erro estimado pelo modelo de taxas sintéticas dos links, não uma "
+            "medição em hardware real. Cada SWAP conta como três portas de dois "
+            "qubits."
+        )
+        selected_methods = _select_algorithms(
+            sorted(benchmarks["algorithm"].dropna().unique())
+            if not benchmarks.empty
+            else [],
+            "case_method",
+        )
+        case_results = benchmarks
+        if not benchmarks.empty:
+            case_results = benchmarks[
+                (benchmarks["circuit"] == selected_circuit)
+                & (benchmarks["topology"] == selected_topology)
+                & (benchmarks["algorithm"].isin(selected_methods))
+            ]
+        _show_mapping_results(case_results)
+
+    with live_tab:
+        _show_live_run(
+            circuit_path,
+            topology_path,
+            selected_circuit,
+            selected_topology,
+            logical_qubits,
+            int(topology_summary_qubits),
+        )
 
 # [IA] Claude Code (Claude Opus 5.5) – refatoração visual da tela de comparação de algoritmos
 with tab_comparison:
@@ -904,12 +1090,14 @@ with tab_comparison:
                 "Famílias de circuitos",
                 circuit_categories,
                 default=circuit_categories,
+                format_func=dataset_label,
             )
         with filter_topology:
             selected_topology_categories = st.multiselect(
                 "Arquiteturas",
                 topology_categories,
                 default=topology_categories,
+                format_func=dataset_label,
             )
         with filter_size:
             selected_qubit_counts = st.multiselect(
@@ -922,6 +1110,7 @@ with tab_comparison:
             selected_topology = st.selectbox(
                 "Topologia específica",
                 ["Todas"] + topology_options,
+                format_func=dataset_label,
                 help="Opcional: restringe a comparação a um único dispositivo.",
                 key="comparison_specific_topology",
             )
@@ -1031,6 +1220,8 @@ with tab_comparison:
                             erro_percentual=(
                                 algorithm_results["expected_error_rate"] * 100
                             )
+                        ).pipe(
+                            _labelled, ("topology_category",)
                         ).rename(
                             columns={
                                 "elapsed_seconds": "Tempo (s)",
@@ -1065,6 +1256,10 @@ with tab_comparison:
                     tempo=("elapsed_seconds", "median"),
                 )
                 detail["erro"] *= 100
+                detail = _labelled(
+                    detail,
+                    ("circuit_category", "circuit", "topology_category", "topology"),
+                )
                 st.dataframe(
                     detail.rename(
                         columns={

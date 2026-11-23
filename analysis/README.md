@@ -106,6 +106,18 @@ logical-qubit count, and charts are separated into topology, scaling,
 per-execution, detail, and interpretation tabs.
 If `metricas_grafos.csv` has an outdated schema, the dashboard regenerates it;
 circuit and topology choices are limited to source files currently present.
+The selected-case view also has an **Executar agora** tab that runs the four
+methods (exact search, multi-start, min-cost flow plus hill climbing, and SABRE)
+on the chosen circuit and topology instead of reading the precomputed CSV. The
+user sets the number of runs, multi-start candidates, initial seed, and the
+placement limit for exact search; run `n` uses seed `seed + n - 1`, as the batch
+benchmark does. The work runs in a separate process (`python -m
+analysis.live_run`, which prints JSON lines for progress and results) because
+Qiskit crashed the interpreter when called from the Streamlit script thread.
+Cases with more than 500 logical-times-physical qubits are blocked behind an
+explicit confirmation, since multi-start takes about 12 s per run at 20 logical
+and 25 physical qubits and grows quickly beyond that. Live results are kept in
+the session and are not written to `out/parte2/mapping_benchmarks.csv`.
 SABRE is measured with Qiskit; VF2Layout remains a qualitative
 market reference because it finds a perfect layout only when the circuit graph
 embeds in the device topology. Estimated errors use synthetic link error rates,

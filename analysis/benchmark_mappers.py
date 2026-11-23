@@ -361,6 +361,50 @@ def _benchmark_case(
     return records
 
 
+# [IA] Claude Code (Claude Sonnet 5.5) – execução de um único caso a partir do app Streamlit
+def run_case(
+    circuit_path: Path,
+    topology_path: Path,
+    runs: int = 5,
+    initial_candidates: int = 10,
+    seed: int = 42,
+    max_exact_placements: int = 100_000,
+    exact_max_qubits: int = 64,
+    on_run=None,
+) -> list[dict[str, object]]:
+    """Executa os quatro métodos em um caso e devolve um registro por execução.
+
+    Cada execução usa a seed ``seed + run - 1``, como o benchmark em lote. A
+    busca exata só roda se o número de placements couber em
+    ``max_exact_placements``. ``on_run(feitas, total)`` é chamado ao fim de
+    cada execução, para o chamador atualizar uma barra de progresso.
+    """
+    if runs < 1:
+        raise ValueError("runs deve ser pelo menos 1")
+    if initial_candidates < 1:
+        raise ValueError("initial_candidates deve ser pelo menos 1")
+    if max_exact_placements < 0:
+        raise ValueError("max_exact_placements deve ser não negativo")
+
+    records: list[dict[str, object]] = []
+    for run in range(1, runs + 1):
+        run_records = _benchmark_case(
+            circuit_path,
+            topology_path,
+            1,
+            initial_candidates,
+            seed + run - 1,
+            max_exact_placements,
+            exact_max_qubits,
+        )
+        for record in run_records:
+            record["run"] = run
+        records.extend(run_records)
+        if on_run is not None:
+            on_run(run, runs)
+    return records
+
+
 def benchmark(
     cases: list[tuple[Path, Path]],
     output_path: Path,
