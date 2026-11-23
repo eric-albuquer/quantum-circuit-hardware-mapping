@@ -567,12 +567,19 @@ def _bar_chart(
                 color=VALUE_LABEL_COLOR,
             )
         # O texto herda a cor da barra; fixa a cor para os valores ficarem pretos.
-        layers.append(
-            text_mark.encode(
-                text=alt.Text(f"{y}:Q", format=".3~g"),
-                color=alt.value(VALUE_LABEL_COLOR),
+        text_encodings: dict[str, object] = {
+            "text": alt.Text(f"{y}:Q", format=".3~g"),
+            "color": alt.value(VALUE_LABEL_COLOR),
+        }
+        if color and color != x:
+            # No texto, o deslocamento de barras agrupadas vale para o início
+            # da subfaixa; bandPosition=0.5 centraliza o valor sobre a barra.
+            text_encodings[offset_channel] = offset_class(
+                f"{color}:N",
+                scale=alt.Scale(paddingInner=0.05),
+                bandPosition=0.5,
             )
-        )
+        layers.append(text_mark.encode(**text_encodings))
     st.altair_chart(
         alt.layer(*layers).properties(height=height),
         width="stretch",
@@ -706,6 +713,48 @@ def _quadrant_matrix(summary: pd.DataFrame) -> None:
     )
 
 
+def _line_chart(data: pd.DataFrame, x: str, y: str, height: int = 360) -> None:
+    """Linhas por método com as mesmas cores e formas da matriz de desempenho."""
+    methods = data["Método"]
+    axis_style = {"labelColor": VALUE_LABEL_COLOR, "titleColor": VALUE_LABEL_COLOR}
+    legend = alt.Legend(
+        title="Método",
+        orient="top",
+        direction="horizontal",
+        symbolSize=160,
+        symbolOpacity=1,
+        labelColor=VALUE_LABEL_COLOR,
+        titleColor=VALUE_LABEL_COLOR,
+    )
+    base = alt.Chart(data).encode(
+        x=alt.X(
+            f"{x}:O",
+            axis=alt.Axis(labelAngle=0, grid=False, **axis_style),
+            sort=sorted(data[x].unique()),
+        ),
+        y=alt.Y(
+            f"{y}:Q",
+            axis=alt.Axis(grid=True, gridColor="#E5E7EB", **axis_style),
+        ),
+        color=alt.Color(
+            "Método:N",
+            scale=_method_color_scale(methods),
+            legend=legend,
+        ),
+    )
+    lines = base.mark_line(strokeWidth=2.5)
+    points = base.mark_point(filled=True, size=160, opacity=1).encode(
+        shape=alt.Shape(
+            "Método:N", scale=_method_shape_scale(methods), legend=legend
+        ),
+        tooltip=["Método", x, y],
+    )
+    st.altair_chart(
+        alt.layer(lines, points).properties(height=height),
+        width="stretch",
+    )
+
+
 # [IA] Claude Code (Claude Opus 5.5) – gráficos padronizados de SWAPs, erro e tempo
 def _show_metric_charts(
     data: pd.DataFrame,
@@ -713,23 +762,33 @@ def _show_metric_charts(
     chart: str = "bar",
     horizontal: bool = False,
     sort_by_value: bool = False,
+    bar_gap: float = 0.1,
+    value_axis: bool = False,
 ) -> None:
     """Mostra SWAPs, erro e tempo em abas com o mesmo formato."""
     chart_tabs = st.tabs(list(CHART_METRICS))
+    plot_height = 30 + 52 * len(data) if horizontal else 360
     for tab, label in zip(chart_tabs, CHART_METRICS):
         with tab:
-            if chart == "line":
-                st.line_chart(data, x=x_axis, y=label, color="Método", height=360)
-            else:
-                _bar_chart(
-                    data,
-                    x=x_axis,
-                    y=label,
-                    color="Método",
-                    height=360 if not horizontal else 30 + 52 * len(data),
-                    horizontal=horizontal,
-                    sort_by_value=sort_by_value,
-                )
+            # Contêiner de altura fixa: as abas ocupam o mesmo espaço e a página
+            # não se move ao trocar de métrica.
+            with st.container(height=plot_height + 110, border=False):
+                if chart == "line":
+                    _line_chart(data, x=x_axis, y=label, height=plot_height)
+                else:
+                    _bar_chart(
+                        data,
+                        x=x_axis,
+                        y=label,
+                        color="Método",
+                        height=plot_height,
+                        horizontal=horizontal,
+                        sort_by_value=sort_by_value,
+                        bar_gap=bar_gap,
+                        value_axis=value_axis,
+                        axis_color=QUBIT_AXIS_GRAY,
+                        axis_line_color=QUBIT_AXIS_LINE_GRAY,
+                    )
 
 
 # [IA] Claude Code (Claude Opus 5.5) – cálculo das medianas para os gráficos
@@ -1418,11 +1477,11 @@ with tab_comparison:
             scalable_results = filtered_results[
                 filtered_results["algorithm"] != "Busca exata"
             ]
-            architecture_tab, scaling_tab, distribution_tab, detail_tab = st.tabs(
+            architecture_tab, scaling_tab, matrix_tab, detail_tab = st.tabs(
                 [
                     "Por topologia",
                     "Por qubits lógicos",
-                    "Por execução",
+                    "Matriz de desempenho",
                     "Dados detalhados",
                 ]
             )
@@ -1439,6 +1498,8 @@ with tab_comparison:
                             ["topology_category", "algorithm"],
                         ),
                         "Topologia",
+                        bar_gap=0.65,
+                        value_axis=True,
                     )
 
             with scaling_tab:
@@ -1459,60 +1520,22 @@ with tab_comparison:
                         chart="line",
                     )
 
-            with distribution_tab:
-                st.caption(
-                    "Cada ponto é uma execução: a cor indica a arquitetura e o "
-                    "tamanho, a quantidade de SWAPs."
-                )
-                selected_algorithm_names = set(
-                    filtered_results["algorithm"].dropna().unique()
-                )
-                scatter_algorithms = [
-                    (algorithm, label)
-                    for algorithm, label, _ in ALGORITHM_OPTIONS
-                    if algorithm in selected_algorithm_names
-                ]
-                scatter_tabs = st.tabs([label for _, label in scatter_algorithms])
-                for tab, (algorithm, _) in zip(scatter_tabs, scatter_algorithms):
-                    with tab:
-                        algorithm_results = filtered_results[
-                            filtered_results["algorithm"] == algorithm
-                        ]
-                        metric_columns = st.columns(3)
-                        metric_columns[0].metric(
-                            "SWAPs medianos",
-                            f"{algorithm_results['swap_count'].median():.1f}",
-                        )
-                        metric_columns[1].metric(
-                            "Erro estimado mediano",
-                            f"{algorithm_results['expected_error_rate'].median() * 100:.3f}%",
-                        )
-                        metric_columns[2].metric(
-                            "Tempo mediano",
-                            f"{algorithm_results['elapsed_seconds'].median():.4f} s",
-                        )
-                        chart_data = algorithm_results.assign(
-                            erro_percentual=(
-                                algorithm_results["expected_error_rate"] * 100
-                            )
-                        ).pipe(
-                            _labelled, ("topology_category",)
-                        ).rename(
-                            columns={
-                                "elapsed_seconds": "Tempo (s)",
-                                "erro_percentual": "Erro estimado (%)",
-                                "swap_count": "SWAPs",
-                                "topology_category": "Arquitetura",
-                            }
-                        )
-                        st.scatter_chart(
-                            chart_data,
-                            x="Tempo (s)",
-                            y="Erro estimado (%)",
-                            color="Arquitetura",
-                            size="SWAPs",
-                            height=440,
-                        )
+            with matrix_tab:
+                if scalable_results.empty:
+                    st.info(
+                        "Selecione multi-start, fluxo min-cost ou SABRE para "
+                        "ver a matriz de desempenho."
+                    )
+                else:
+                    st.caption(
+                        "SWAPs × erro estimado (medianas de todos os casos "
+                        "filtrados). As linhas marcam a média dos métodos "
+                        "comparados; quanto mais perto do canto inferior "
+                        "esquerdo, melhor."
+                    )
+                    _quadrant_matrix(
+                        _median_metrics(scalable_results, ["algorithm"])
+                    )
 
             with detail_tab:
                 detail = filtered_results.groupby(
