@@ -1,4 +1,17 @@
 algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+graphstate,graphstate_13qubits,13,0,0,1
+graphstate,graphstate_13qubits,13,1,1,1
+graphstate,graphstate_13qubits,13,2,2,1
+graphstate,graphstate_13qubits,13,3,3,1
+graphstate,graphstate_13qubits,13,4,4,1
+graphstate,graphstate_13qubits,13,5,5,1
+graphstate,graphstate_13qubits,13,6,6,1
+graphstate,graphstate_13qubits,13,7,7,1
+graphstate,graphstate_13qubits,13,8,8,1
+graphstate,graphstate_13qubits,13,9,9,1
+graphstate,graphstate_13qubits,13,10,10,1
+graphstate,graphstate_13qubits,13,11,11,1
+graphstate,graphstate_13qubits,13,12,12,1
 graphstate,graphstate_13qubits,13,0,1,1
 graphstate,graphstate_13qubits,13,0,2,0
 graphstate,graphstate_13qubits,13,0,3,1

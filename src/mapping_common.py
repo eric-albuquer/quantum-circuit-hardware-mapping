@@ -55,6 +55,9 @@ def route_circuit(
         return rate
 
     for interaction in circuit.fpga:
+        if interaction.qubit_1 == interaction.qubit_2:
+            continue
+
         physical_1 = final_mapping[interaction.qubit_1]
         physical_2 = final_mapping[interaction.qubit_2]
         path = topology.path_matrix[physical_1][physical_2]

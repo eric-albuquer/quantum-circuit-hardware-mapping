@@ -1,4 +1,8 @@
 algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+graphstate,graphstate_4qubits,4,0,0,1
+graphstate,graphstate_4qubits,4,1,1,1
+graphstate,graphstate_4qubits,4,2,2,1
+graphstate,graphstate_4qubits,4,3,3,1
 graphstate,graphstate_4qubits,4,0,1,1
 graphstate,graphstate_4qubits,4,0,2,0
 graphstate,graphstate_4qubits,4,0,3,1

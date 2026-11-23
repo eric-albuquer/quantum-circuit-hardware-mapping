@@ -120,8 +120,9 @@ def load_circuits(data_root: Path) -> list[CircuitData]:
                         qubit_2,
                     )
                 )
-                pair_counts[tuple(sorted((qubit_1, qubit_2)))] += 1
-                interaction_count += 1
+                if qubit_1 != qubit_2:
+                    pair_counts[tuple(sorted((qubit_1, qubit_2)))] += 1
+                    interaction_count += 1
 
         circuit_graph = CircuitGraph(edges) if edges else None
         degrees = (

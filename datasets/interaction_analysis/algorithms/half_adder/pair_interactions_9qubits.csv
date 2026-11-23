@@ -1,4 +1,13 @@
 algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+half_adder,half_adder_9qubits,9,0,0,0
+half_adder,half_adder_9qubits,9,1,1,0
+half_adder,half_adder_9qubits,9,2,2,0
+half_adder,half_adder_9qubits,9,3,3,0
+half_adder,half_adder_9qubits,9,4,4,0
+half_adder,half_adder_9qubits,9,5,5,0
+half_adder,half_adder_9qubits,9,6,6,0
+half_adder,half_adder_9qubits,9,7,7,0
+half_adder,half_adder_9qubits,9,8,8,0
 half_adder,half_adder_9qubits,9,0,1,0
 half_adder,half_adder_9qubits,9,0,2,0
 half_adder,half_adder_9qubits,9,0,3,0

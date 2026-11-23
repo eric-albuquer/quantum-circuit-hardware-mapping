@@ -1,4 +1,14 @@
 algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+grover,grover_10qubits,10,0,0,1
+grover,grover_10qubits,10,1,1,1
+grover,grover_10qubits,10,2,2,1
+grover,grover_10qubits,10,3,3,1
+grover,grover_10qubits,10,4,4,1
+grover,grover_10qubits,10,5,5,1
+grover,grover_10qubits,10,6,6,1
+grover,grover_10qubits,10,7,7,1
+grover,grover_10qubits,10,8,8,1
+grover,grover_10qubits,10,9,9,1
 grover,grover_10qubits,10,0,1,0
 grover,grover_10qubits,10,0,2,0
 grover,grover_10qubits,10,0,3,0

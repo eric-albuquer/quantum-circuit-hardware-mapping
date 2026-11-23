@@ -13,13 +13,16 @@ python -m analysis.generate_algorithm_interactions
 The output is grouped by algorithm and qubit count under
 `datasets/interaction_analysis/algorithms/<algorithm>/`. For example,
 `ghz/pair_interactions_5qubits.csv` contains the pairwise interactions for
-five-qubit GHZ circuits. Each row represents one unordered qubit pair in one
-circuit. Pairs with no two-qubit gates are included with an
-`interaction_count` of `0`.
+five-qubit GHZ circuits. Each circuit has a row for every unordered pair of
+distinct qubits and one self-pair per qubit. Rows with no corresponding gates
+have an `interaction_count` of `0`. Self-pairs (`qubit_1 == qubit_2`) count
+one-qubit gates such as Hadamard; other rows count two-qubit gates between
+distinct qubits.
 
 The columns are `algorithm`, `circuit`, `num_qubits`, `qubit_1`, `qubit_2`, and
-`interaction_count`. The count is the number of two-qubit instructions between
-the pair; it does not distinguish gate types.
+`interaction_count`. For a self-pair, the count is the number of one-qubit
+instructions on that qubit; otherwise it is the number of two-qubit
+instructions between the pair. Counts do not distinguish gate types.
 
 ## Ordered interaction edge lists
 
@@ -30,16 +33,20 @@ python -m analysis.generate_ordered_interactions
 ```
 
 The output is grouped by algorithm under
-`datasets/interaction_order/algorithms/<algorithm>/`. Each row is one
-two-qubit instruction, in its original circuit order; repeated edges are
-preserved. Multi-qubit custom gates are expanded into their defined
-instructions, and each resulting interaction retains the index of the
-original circuit instruction. The columns are `algorithm`, `circuit`, `num_qubits`,
-`interaction_index` (zero-based among two-qubit instructions),
+`datasets/interaction_order/algorithms/<algorithm>/`. Each row records a
+one- or two-qubit instruction in its original circuit order; one-qubit
+instructions use the same qubit in both qubit columns, and repeated
+instructions are preserved. Multi-qubit custom gates are expanded into their
+defined instructions, and each resulting interaction retains the index of the
+original circuit instruction. The columns are `algorithm`, `circuit`,
+`num_qubits`,
+`interaction_index` (zero-based among recorded instructions),
 `instruction_index` (zero-based in the complete circuit), `gate`,
 `qubit_1`, and `qubit_2`. The qubit columns preserve operand order, which is
-significant for directed gates such as `cx`. One-qubit, measurement, and
-barrier instructions are not written as edges.
+significant for directed gates such as `cx`. Measurement and barrier
+instructions are not written as interactions. The mapper preserves
+single-qubit operations in circuit dependencies but does not route them as
+two-qubit gates or apply a two-qubit link error to them.
 
 ## AVD visualizations
 

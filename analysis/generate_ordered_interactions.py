@@ -48,7 +48,7 @@ def generate_ordered_interaction_dataset(
         output_path = output_root / algorithm / f"{circuit_path.stem}_ordered_interactions.csv"
         output_path.parent.mkdir(parents=True, exist_ok=True)
         with output_path.open("w", newline="", encoding="utf-8") as output_file:
-            writer = csv.writer(output_file)
+            writer = csv.writer(output_file, lineterminator="\n")
             writer.writerow(COLUMNS)
             writer.writerows(
                 (

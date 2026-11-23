@@ -1,2 +1,9 @@
 algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
-bv,bv_4qubits,4,0,4,cz,2,0
+bv,bv_4qubits,4,0,0,x,0,0
+bv,bv_4qubits,4,1,1,h,1,1
+bv,bv_4qubits,4,2,2,h,2,2
+bv,bv_4qubits,4,3,3,h,3,3
+bv,bv_4qubits,4,4,4,cz,2,0
+bv,bv_4qubits,4,5,5,h,1,1
+bv,bv_4qubits,4,6,6,h,2,2
+bv,bv_4qubits,4,7,7,h,3,3

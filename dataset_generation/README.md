@@ -32,4 +32,6 @@ run with `python -m analysis.interactions [path]`. To create a pairwise
 interaction dataset for all algorithm circuits, run
 `python -m analysis.generate_algorithm_interactions`. Its output is grouped by
 algorithm and qubit count under `datasets/interaction_analysis/algorithms/`,
-with one `pair_interactions_<count>qubits.csv` file per variation.
+with one `pair_interactions_<count>qubits.csv` file per variation. These files
+include self-pairs (`qubit_1 == qubit_2`) for one-qubit gates such as Hadamard,
+as well as distinct pairs for two-qubit gates.

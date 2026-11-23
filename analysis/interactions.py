@@ -26,6 +26,12 @@ def analyze_interactions(path: Path) -> tuple[int, np.ndarray]:
     interaction_matrix = np.zeros((qubit_count, qubit_count), dtype=int)
 
     for instruction in circuit.data:
+        if instruction.operation.name in {"barrier", "measure"}:
+            continue
+        if len(instruction.qubits) == 1:
+            qubit = circuit.find_bit(instruction.qubits[0]).index
+            interaction_matrix[qubit, qubit] += 1
+            continue
         if len(instruction.qubits) != 2:
             continue
         first = circuit.find_bit(instruction.qubits[0]).index
@@ -53,12 +59,22 @@ def analyze_ordered_interactions(
         source_instruction_index: int,
     ) -> None:
         for instruction in definition.data:
-            if instruction.operation.name == "barrier":
+            if instruction.operation.name in {"barrier", "measure"}:
                 continue
             operands = [
                 qubit_indices[definition.find_bit(qubit).index]
                 for qubit in instruction.qubits
             ]
+            if len(operands) == 1:
+                interactions.append(
+                    (
+                        len(interactions),
+                        source_instruction_index,
+                        instruction.operation.name,
+                        operands[0],
+                        operands[0],
+                    )
+                )
             if len(operands) == 2:
                 interactions.append(
                     (
@@ -83,15 +99,26 @@ def analyze_ordered_interactions(
                 )
 
     for instruction_index, instruction in enumerate(circuit.data):
-        if instruction.operation.name == "barrier":
+        if instruction.operation.name in {"barrier", "measure"}:
             continue
-        if len(instruction.qubits) < 2:
+        if not instruction.qubits:
             continue
 
         operands = [
             circuit.find_bit(qubit).index
             for qubit in instruction.qubits
         ]
+        if len(operands) == 1:
+            interactions.append(
+                (
+                    len(interactions),
+                    instruction_index,
+                    instruction.operation.name,
+                    operands[0],
+                    operands[0],
+                )
+            )
+            continue
         if len(operands) == 2:
             interactions.append(
                 (

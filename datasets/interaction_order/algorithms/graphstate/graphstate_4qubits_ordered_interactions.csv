@@ -1,5 +1,9 @@
 algorithm,circuit,num_qubits,interaction_index,instruction_index,gate,qubit_1,qubit_2
-graphstate,graphstate_4qubits,4,0,2,cz,0,1
-graphstate,graphstate_4qubits,4,1,4,cz,1,2
-graphstate,graphstate_4qubits,4,2,6,cz,0,3
-graphstate,graphstate_4qubits,4,3,7,cz,2,3
+graphstate,graphstate_4qubits,4,0,0,h,0,0
+graphstate,graphstate_4qubits,4,1,1,h,1,1
+graphstate,graphstate_4qubits,4,2,2,cz,0,1
+graphstate,graphstate_4qubits,4,3,3,h,2,2
+graphstate,graphstate_4qubits,4,4,4,cz,1,2
+graphstate,graphstate_4qubits,4,5,5,h,3,3
+graphstate,graphstate_4qubits,4,6,6,cz,0,3
+graphstate,graphstate_4qubits,4,7,7,cz,2,3

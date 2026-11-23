@@ -1,4 +1,10 @@
 algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+qft,qft_6qubits,6,0,0,0
+qft,qft_6qubits,6,1,1,0
+qft,qft_6qubits,6,2,2,0
+qft,qft_6qubits,6,3,3,0
+qft,qft_6qubits,6,4,4,0
+qft,qft_6qubits,6,5,5,0
 qft,qft_6qubits,6,0,1,0
 qft,qft_6qubits,6,0,2,0
 qft,qft_6qubits,6,0,3,0

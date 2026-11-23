@@ -1,4 +1,10 @@
 algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+qftentangled,qftentangled_6qubits,6,0,0,0
+qftentangled,qftentangled_6qubits,6,1,1,0
+qftentangled,qftentangled_6qubits,6,2,2,0
+qftentangled,qftentangled_6qubits,6,3,3,0
+qftentangled,qftentangled_6qubits,6,4,4,0
+qftentangled,qftentangled_6qubits,6,5,5,1
 qftentangled,qftentangled_6qubits,6,0,1,1
 qftentangled,qftentangled_6qubits,6,0,2,0
 qftentangled,qftentangled_6qubits,6,0,3,0

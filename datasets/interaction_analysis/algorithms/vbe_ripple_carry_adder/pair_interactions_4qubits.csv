@@ -1,4 +1,8 @@
 algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+vbe_ripple_carry_adder,vbe_ripple_carry_adder_4qubits,4,0,0,0
+vbe_ripple_carry_adder,vbe_ripple_carry_adder_4qubits,4,1,1,0
+vbe_ripple_carry_adder,vbe_ripple_carry_adder_4qubits,4,2,2,0
+vbe_ripple_carry_adder,vbe_ripple_carry_adder_4qubits,4,3,3,0
 vbe_ripple_carry_adder,vbe_ripple_carry_adder_4qubits,4,0,1,0
 vbe_ripple_carry_adder,vbe_ripple_carry_adder_4qubits,4,0,2,0
 vbe_ripple_carry_adder,vbe_ripple_carry_adder_4qubits,4,0,3,0

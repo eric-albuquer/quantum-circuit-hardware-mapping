@@ -1,4 +1,16 @@
 algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+bmw_quark_copula,bmw_quark_copula_12qubits,12,0,0,7
+bmw_quark_copula,bmw_quark_copula_12qubits,12,1,1,7
+bmw_quark_copula,bmw_quark_copula_12qubits,12,2,2,7
+bmw_quark_copula,bmw_quark_copula_12qubits,12,3,3,7
+bmw_quark_copula,bmw_quark_copula_12qubits,12,4,4,7
+bmw_quark_copula,bmw_quark_copula_12qubits,12,5,5,7
+bmw_quark_copula,bmw_quark_copula_12qubits,12,6,6,6
+bmw_quark_copula,bmw_quark_copula_12qubits,12,7,7,6
+bmw_quark_copula,bmw_quark_copula_12qubits,12,8,8,6
+bmw_quark_copula,bmw_quark_copula_12qubits,12,9,9,6
+bmw_quark_copula,bmw_quark_copula_12qubits,12,10,10,6
+bmw_quark_copula,bmw_quark_copula_12qubits,12,11,11,6
 bmw_quark_copula,bmw_quark_copula_12qubits,12,0,1,2
 bmw_quark_copula,bmw_quark_copula_12qubits,12,0,2,2
 bmw_quark_copula,bmw_quark_copula_12qubits,12,0,3,2

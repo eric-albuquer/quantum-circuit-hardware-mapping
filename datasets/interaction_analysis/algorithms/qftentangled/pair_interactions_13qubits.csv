@@ -1,4 +1,17 @@
 algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+qftentangled,qftentangled_13qubits,13,0,0,0
+qftentangled,qftentangled_13qubits,13,1,1,0
+qftentangled,qftentangled_13qubits,13,2,2,0
+qftentangled,qftentangled_13qubits,13,3,3,0
+qftentangled,qftentangled_13qubits,13,4,4,0
+qftentangled,qftentangled_13qubits,13,5,5,0
+qftentangled,qftentangled_13qubits,13,6,6,0
+qftentangled,qftentangled_13qubits,13,7,7,0
+qftentangled,qftentangled_13qubits,13,8,8,0
+qftentangled,qftentangled_13qubits,13,9,9,0
+qftentangled,qftentangled_13qubits,13,10,10,0
+qftentangled,qftentangled_13qubits,13,11,11,0
+qftentangled,qftentangled_13qubits,13,12,12,1
 qftentangled,qftentangled_13qubits,13,0,1,1
 qftentangled,qftentangled_13qubits,13,0,2,0
 qftentangled,qftentangled_13qubits,13,0,3,0

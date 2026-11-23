@@ -34,6 +34,31 @@ def make_interaction_circuit(
 
 
 class MaxFlowMinCostMappingTests(unittest.TestCase):
+    def test_single_qubit_operations_are_dependencies_not_routed_interactions(self):
+        circuit = CircuitGraph(
+            [
+                CircuitEdge("test", "test", 2, 0, 0, "h", 0, 0),
+                CircuitEdge("test", "test", 2, 1, 1, "cx", 0, 1),
+            ]
+        )
+        topology = TopologyGraph(
+            [
+                TopologyEdge(0, 1, 0.1, 0.9),
+                TopologyEdge(1, 0, 0.1, 0.9),
+            ]
+        )
+
+        routed = route_circuit(circuit, topology, {0: 0, 1: 1})
+
+        self.assertEqual(circuit.iteraction_matrix, [[1, 1], [1, 0]])
+        self.assertEqual(circuit.qubit_degree, [1, 1])
+        self.assertEqual(circuit.qubit_interactions, [1, 1])
+        self.assertEqual(circuit.two_qubit_interaction_count, 1)
+        self.assertEqual(circuit.operation_count, 2)
+        self.assertEqual(circuit.dependency_depth, 2)
+        self.assertAlmostEqual(routed.expected_error_rate, 0.1)
+        self.assertEqual(routed.swap_count, 0)
+
     def test_graphs_precompute_mapping_metrics(self):
         topology = TopologyGraph(
             [

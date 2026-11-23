@@ -1,4 +1,8 @@
 algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+modular_adder,modular_adder_4qubits,4,0,0,0
+modular_adder,modular_adder_4qubits,4,1,1,0
+modular_adder,modular_adder_4qubits,4,2,2,0
+modular_adder,modular_adder_4qubits,4,3,3,0
 modular_adder,modular_adder_4qubits,4,0,1,0
 modular_adder,modular_adder_4qubits,4,0,2,0
 modular_adder,modular_adder_4qubits,4,0,3,0

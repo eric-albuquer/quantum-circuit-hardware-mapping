@@ -1,4 +1,15 @@
 algorithm,circuit,num_qubits,qubit_1,qubit_2,interaction_count
+bv,bv_11qubits,11,0,0,1
+bv,bv_11qubits,11,1,1,2
+bv,bv_11qubits,11,2,2,2
+bv,bv_11qubits,11,3,3,2
+bv,bv_11qubits,11,4,4,2
+bv,bv_11qubits,11,5,5,2
+bv,bv_11qubits,11,6,6,2
+bv,bv_11qubits,11,7,7,2
+bv,bv_11qubits,11,8,8,2
+bv,bv_11qubits,11,9,9,2
+bv,bv_11qubits,11,10,10,2
 bv,bv_11qubits,11,0,1,0
 bv,bv_11qubits,11,0,2,1
 bv,bv_11qubits,11,0,3,0
