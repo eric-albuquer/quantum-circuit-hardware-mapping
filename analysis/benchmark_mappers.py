@@ -42,6 +42,7 @@ ALGORITHMS = (
     "Qiskit SABRE",
 )
 CIRCUIT_FAMILIES = ("ghz", "modular_adder", "qft", "qaoa")
+DEFAULT_CIRCUIT_FAMILIES = ("ghz", "qft")
 TOPOLOGY_FAMILIES = (
     "line",
     "ring",
@@ -50,15 +51,17 @@ TOPOLOGY_FAMILIES = (
     "heavy_hex",
     "heavy_square",
 )
+DEFAULT_TOPOLOGY_FAMILIES = ("line", "ring")
 SAME_SIZE_TOPOLOGY_FAMILIES = ("line", "ring", "full")
-DEFAULT_QUBIT_COUNTS = (4, 6, 8, 10, 12)
-DEFAULT_EXACT_MAX_QUBITS = 4
+DEFAULT_QUBIT_COUNTS = (4, 6, 8, 10)
+DEFAULT_EXACT_MAX_QUBITS = 0
 
 
 def default_cases(
     repository_root: Path,
     qubit_counts: tuple[int, ...] = DEFAULT_QUBIT_COUNTS,
-    topology_families: tuple[str, ...] = TOPOLOGY_FAMILIES,
+    topology_families: tuple[str, ...] = DEFAULT_TOPOLOGY_FAMILIES,
+    circuit_families: tuple[str, ...] = DEFAULT_CIRCUIT_FAMILIES,
 ) -> list[tuple[Path, Path]]:
     topology_paths = {
         family: sorted(
@@ -80,7 +83,7 @@ def default_cases(
             / "algorithms"
             / family
             / f"{family}_{qubit_count}qubits_ordered_interactions.csv"
-            for family in CIRCUIT_FAMILIES
+            for family in circuit_families
         ]
         topologies = []
         for family in topology_families:
@@ -368,7 +371,7 @@ def _benchmark_case(
 def run_case(
     circuit_path: Path,
     topology_path: Path,
-    runs: int = 5,
+    runs: int = 3,
     initial_candidates: int = 10,
     seed: int = 42,
     max_exact_placements: int = 100_000,
@@ -417,8 +420,8 @@ def benchmark(
     max_exact_placements: int = 100_000,
     exact_max_qubits: int = DEFAULT_EXACT_MAX_QUBITS,
 ) -> None:
-    if runs < 5:
-        raise ValueError("Use pelo menos cinco execuções para cada algoritmo")
+    if runs < 3:
+        raise ValueError("Use pelo menos três execuções para cada algoritmo")
     if initial_candidates < 1:
         raise ValueError("initial_candidates deve ser pelo menos 1")
     if max_exact_placements < 0:
@@ -463,7 +466,7 @@ def benchmark(
         "implementation_version",
     ]
     with output_path.open("w", encoding="utf-8-sig", newline="") as file:
-        writer = csv.DictWriter(file, fieldnames=fields)
+        writer = csv.DictWriter(file, fieldnames=fields, lineterminator="\n")
         writer.writeheader()
         writer.writerows(records)
     print(
@@ -493,7 +496,7 @@ def main() -> None:
         type=Path,
         default=repository_root / "out" / "parte2" / "mapping_benchmarks.csv",
     )
-    parser.add_argument("--runs", type=int, default=5)
+    parser.add_argument("--runs", type=int, default=3)
     parser.add_argument("--initial-candidates", type=int, default=10)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument(
@@ -506,12 +509,21 @@ def main() -> None:
         ),
     )
     parser.add_argument(
+        "--circuit-family",
+        choices=CIRCUIT_FAMILIES,
+        action="append",
+        help=(
+            "Circuit family to benchmark. Repeat to add families; "
+            f"default: {', '.join(DEFAULT_CIRCUIT_FAMILIES)}."
+        ),
+    )
+    parser.add_argument(
         "--topology-family",
         choices=TOPOLOGY_FAMILIES,
         action="append",
         help=(
             "Topology family to benchmark. Repeat to add families; "
-            f"default: {', '.join(TOPOLOGY_FAMILIES)}."
+            f"default: {', '.join(DEFAULT_TOPOLOGY_FAMILIES)}."
         ),
     )
     parser.add_argument("--max-exact-placements", type=int, default=100_000)
@@ -527,11 +539,13 @@ def main() -> None:
     args = parser.parse_args()
 
     qubit_counts = tuple(args.qubit_count or DEFAULT_QUBIT_COUNTS)
-    topology_families = tuple(args.topology_family or TOPOLOGY_FAMILIES)
+    circuit_families = tuple(args.circuit_family or DEFAULT_CIRCUIT_FAMILIES)
+    topology_families = tuple(args.topology_family or DEFAULT_TOPOLOGY_FAMILIES)
     available_cases = default_cases(
         repository_root,
         qubit_counts,
         topology_families,
+        circuit_families,
     )
     circuits = args.circuit
     topologies = args.topology

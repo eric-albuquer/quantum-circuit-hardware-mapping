@@ -81,33 +81,30 @@ python -m analysis.benchmark_mappers
 python -m streamlit run analysis/streamlit_app.py
 ```
 
-For a faster refresh after routing changes, precompute the four key circuit
-families at four logical qubits across all six topology families, without the
-expensive exact-search baseline:
+The default batch is a compact scaling dataset for the comparison tab:
 
 ```powershell
-python -m analysis.benchmark_mappers --qubit-count 4 --topology-family line --topology-family ring --topology-family full --topology-family grid --topology-family heavy_hex --topology-family heavy_square --runs 5 --exact-max-qubits 0 --max-exact-placements 0
+python -m analysis.benchmark_mappers --runs 3
 ```
 
-This reduced dataset contains 24 circuit/topology cases and five runs each for
-multi-start, min-cost flow plus hill climbing, and Qiskit SABRE. The full
-default matrix remains available by omitting the selection options.
+It contains GHZ and QFT circuits at 4, 6, 8, and 10 logical qubits on line and
+ring topologies: 16 scenarios, with three runs each for multi-start,
+min-cost flow plus hill climbing, and Qiskit SABRE. Using line and ring keeps
+physical size equal to logical size, making the growth in runtime, estimated
+error, and SWAPs easier to compare. Exact search is disabled for batch runs by
+default.
 
-The default benchmark covers 120 cases: GHZ, modular-adder, QFT, and QAOA
-circuits at four, six, eight, ten, and twelve qubits, paired with `line`,
+Broader batches can select more circuit and topology families, for example
+`--circuit-family qaoa --topology-family grid --topology-family heavy_hex`.
+Available families are GHZ, modular-adder, QFT, and QAOA circuits, and `line`,
 `ring`, `full`, `grid`, `heavy_hex`, and `heavy_square` topologies. Line, ring,
 and full topologies use the same physical size as the circuit; the other
-families use the smallest available topology that fits. Each case runs five
-seeds for multi-start heuristic, min-cost flow plus hill climbing, and Qiskit SABRE.
-Exact search is included only for cases with at most four logical qubits and no
-more than 100,000 possible placements; it is a reference for these small
-cases, not a baseline for the full matrix. Set `--exact-max-qubits 0` to
-disable exact search or use `--max-exact-placements` to lower its placement
-limit. Use repeated `--qubit-count` options to precompute other available
-logical sizes, repeated `--topology-family` options to choose architectures,
-and repeated `--circuit` and `--topology` options to select specific inputs.
-The CSV records initial/final logical-to-physical mappings, SWAP count,
-estimated error, and elapsed time.
+families use the smallest available topology that fits. Use repeated
+`--qubit-count`, `--circuit-family`, and `--topology-family` options to expand
+the selection, or repeated `--circuit` and `--topology` options for specific
+input files. At least three runs are required. The CSV records
+initial/final logical-to-physical mappings, SWAP count, estimated error, and
+elapsed time.
 
 The dashboard separates dataset-wide graphs from the selected circuit and
 topology, groups selection controls by circuit family and hardware architecture,

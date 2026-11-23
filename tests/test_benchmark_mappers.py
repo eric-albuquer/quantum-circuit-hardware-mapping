@@ -1,16 +1,20 @@
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from qiskit import QuantumCircuit
 from qiskit.transpiler import CouplingMap
 
 from analysis.benchmark_mappers import (
     CIRCUIT_FAMILIES,
+    DEFAULT_CIRCUIT_FAMILIES,
+    DEFAULT_TOPOLOGY_FAMILIES,
+    DEFAULT_EXACT_MAX_QUBITS,
     DEFAULT_QUBIT_COUNTS,
-    TOPOLOGY_FAMILIES,
     _run_sabre,
     _should_run_exact,
+    benchmark,
     default_cases,
 )
 from src.circuit_graph.graph import CircuitEdge, CircuitGraph
@@ -37,6 +41,22 @@ class BenchmarkExactSearchTests(unittest.TestCase):
 
 
 class BenchmarkScenarioTests(unittest.TestCase):
+    def test_batch_defaults_use_three_runs_and_disable_exact_search(self):
+        self.assertEqual(DEFAULT_QUBIT_COUNTS, (4, 6, 8, 10))
+        self.assertEqual(DEFAULT_CIRCUIT_FAMILIES, ("ghz", "qft"))
+        self.assertEqual(DEFAULT_TOPOLOGY_FAMILIES, ("line", "ring"))
+        self.assertEqual(DEFAULT_EXACT_MAX_QUBITS, 0)
+
+    def test_benchmark_accepts_three_runs_and_rejects_fewer(self):
+        with TemporaryDirectory() as temporary_directory:
+            output_path = Path(temporary_directory) / "benchmark.csv"
+            cases = [(Path("circuit.csv"), Path("topology.csv"))]
+            with patch("analysis.benchmark_mappers._benchmark_case", return_value=[]):
+                benchmark(cases, output_path, runs=3)
+                self.assertTrue(output_path.is_file())
+                with self.assertRaisesRegex(ValueError, "três execuções"):
+                    benchmark(cases, output_path, runs=2)
+
     def test_default_cases_include_each_family_at_compatible_sizes(self):
         with TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -80,9 +100,9 @@ class BenchmarkScenarioTests(unittest.TestCase):
             cases = default_cases(root)
 
         expected_case_count = (
-            len(CIRCUIT_FAMILIES)
+            len(DEFAULT_CIRCUIT_FAMILIES)
             * len(expected_counts)
-            * len(TOPOLOGY_FAMILIES)
+            * len(DEFAULT_TOPOLOGY_FAMILIES)
         )
         self.assertEqual(len(cases), expected_case_count)
         observed_counts = {
@@ -95,7 +115,11 @@ class BenchmarkScenarioTests(unittest.TestCase):
         }
         observed_topologies = {topology.parent.name for _, topology in cases}
         self.assertEqual(observed_counts, expected_counts)
-        self.assertEqual(observed_topologies, set(TOPOLOGY_FAMILIES))
+        self.assertEqual(observed_topologies, set(DEFAULT_TOPOLOGY_FAMILIES))
+        self.assertEqual(
+            {circuit.parent.name for circuit, _ in cases},
+            set(DEFAULT_CIRCUIT_FAMILIES),
+        )
         for circuit, topology in cases:
             circuit_qubits = int(
                 circuit.stem.removesuffix("_ordered_interactions")
