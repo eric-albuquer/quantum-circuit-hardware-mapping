@@ -1,4 +1,4 @@
-# [IA] Claude Code (Claude Sonnet 5.5) – execução de um caso em processo separado para o app Streamlit
+ # [IA] Claude Code (Claude Sonnet 5.5) – execução de um caso em processo separado para o app Streamlit
 """Executa os quatro métodos em um caso e imprime o resultado como JSON.
 
 O app Streamlit chama este módulo em um subprocesso, em vez de rodar o Qiskit

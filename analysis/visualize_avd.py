@@ -726,7 +726,8 @@ def plot_circuit_graph(circuit: CircuitData, output_dir: Path) -> str:
         ax=ax,
         labels={node: f"q{node}" for node in graph},
         font_size=9,
-        font_color=COLORS["ink"],
+        # [IA] Claude Code (Claude Sonnet 5.5) – nomes dos vértices em branco sobre os nós coloridos
+        font_color="white",
     )
     nx.draw_networkx_edge_labels(
         graph,
@@ -817,7 +818,8 @@ def plot_topology_graph(topology: TopologyData, output_dir: Path) -> str:
         ax=ax,
         labels={node: str(node) for node in graph},
         font_size=9,
-        font_color=COLORS["ink"],
+        # [IA] Claude Code (Claude Sonnet 5.5) – nomes dos vértices em branco sobre os nós coloridos
+        font_color="white",
     )
     worst_link = max(
         topology.links.items(),

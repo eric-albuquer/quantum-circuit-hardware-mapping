@@ -133,13 +133,19 @@ def _mapping_label(serialized_mapping: str) -> str:
     )
 
 
+# [IA] Claude Code (Claude Sonnet 5.5) – checkboxes só dos algoritmos disponíveis, sem coluna vazia à esquerda
 def _select_algorithms(available: list[str], key_prefix: str) -> list[str]:
-    columns = st.columns(len(ALGORITHM_OPTIONS))
+    options = [
+        (index, option)
+        for index, option in enumerate(ALGORITHM_OPTIONS)
+        if option[0] in available
+    ]
+    if not options:
+        return []
+    columns = st.columns(len(options))
     selected = []
-    for index, (algorithm, label, help_text) in enumerate(ALGORITHM_OPTIONS):
-        if algorithm not in available:
-            continue
-        if columns[index].checkbox(
+    for column, (index, (algorithm, label, help_text)) in zip(columns, options):
+        if column.checkbox(
             label,
             value=algorithm != "Busca exata",
             help=help_text,
@@ -1383,7 +1389,8 @@ with tab_case:
             "medição em hardware real. Cada SWAP conta como três portas de dois "
             "qubits."
         )
-        methods_column, _ = st.columns(2, gap="large")  # alinhado à metade da página
+        # [IA] Claude Code (Claude Sonnet 5.5) – botões de métodos mais estreitos, junto à borda esquerda
+        methods_column, _ = st.columns([2, 3], gap="large")
         with methods_column:
             selected_methods = _select_algorithms(
                 sorted(benchmarks["algorithm"].dropna().unique())
