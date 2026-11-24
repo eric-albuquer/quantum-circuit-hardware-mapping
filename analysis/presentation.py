@@ -728,6 +728,99 @@ def _show_dataset_generation(circuits: pd.DataFrame) -> None:
         "si, não para prever o desempenho em um hardware específico."
     )
 
+    st.markdown("#### Do algoritmo bruto ao CSV de interações")
+    st.markdown(
+        """
+        A extração começa no catálogo `datasets/algorithms/<algoritmo>/`.
+        Cada arquivo `.qasm` é carregado pelo Qiskit — OpenQASM 2 usa o
+        modo legado de instruções e OpenQASM 3 é carregado pelo importador
+        correspondente. Para cada instrução, o índice interno de cada operando
+        é obtido pela posição do qubit no circuito.
+
+        1. **Circuito bruto:** a geração MQT Bench escreve OpenQASM 2; os
+           circuitos aleatórios do Qiskit são escritos em OpenQASM 3.
+        2. **Leitura e inspeção:** medidas e barreiras são ignoradas. Instruções
+           com um operando são associadas à diagonal `qubit_1 == qubit_2`;
+           instruções com dois operandos contam para o par não ordenado
+           `(min(q1, q2), max(q1, q2))`.
+        3. **Montagem da lista agregada:** são gerados todos os pares possíveis
+           no circuito, inclusive pares sem interação. O valor da diagonal é
+           o número de operações de um qubit e o valor fora dela é o número
+           de operações de dois qubits daquele par. A direção `cx`, o tipo
+           específico da porta e a ordem temporal são deliberadamente
+           agregados nessa tabela.
+        4. **Serialização:** um arquivo
+           `pair_interactions_<n>qubits.csv` é criado por família e tamanho.
+           O script mantém `algorithm`, `circuit`, `num_qubits`, `qubit_1`,
+           `qubit_2` e `interaction_count`. Também existe uma lista ordenada,
+           com uma linha por operação registrada, preservando índice original,
+           nome da porta e ordem dos operandos. Portas customizadas com mais
+           de dois operandos são expandidas em sua definição recursivamente.
+
+        No snapshot atual existem 531 circuitos QASM, 521 arquivos CSV de pares
+        agrupados por qubit e 531 arquivos CSV ordenados, derivados dos 29
+        diretórios de famílias. Nenhuma família é descartada pelo gerador: ele
+        escreve a tabela para todas as famílias que possuem circuitos. Os pares
+        que não aparecem em gates recebem `interaction_count = 0` e continuam
+        presentes como linhas de dados.
+        """
+    )
+
+    st.markdown("##### Circuitos sem pares distintos de dois qubits")
+    st.markdown(
+        """
+        Não há uma etapa que exclua uma família inteira por ausência de pares.
+        Porém, no critério de duas portas distintas — isto é, uma ocorrência em
+        que `qubit_1 != qubit_2` — 98 dos 531 circuitos não formam nenhum par.
+        Eles continuam nos dados brutos e nas listas ordenadas, mas não têm
+        aresta distinta no grafo de interação. O resumo abaixo separa a ausência
+        de pares pela família encontrada no snapshot.
+        """
+    )
+    st.dataframe(
+        pd.DataFrame(
+            [
+                ("dj", 28),
+                ("grover", 8),
+                ("full_adder", 9),
+                ("half_adder", 9),
+                ("hrs_cumulative_multiplier", 3),
+                ("modular_adder", 9),
+                ("multiplier", 4),
+                ("qft", 28),
+            ],
+            columns=("Família sem par distinto", "Circuitos sem par distinto"),
+        ),
+        width="stretch",
+        hide_index=True,
+    )
+    st.caption(
+        "Critério: um circuito foi contado aqui somente quando não possui "
+        "nenhuma instrução de dois operandos com qubits físicos distintos. "
+        "Isso não significa que o circuito foi descartado do conjunto bruto."
+    )
+
+    st.markdown("#### Dados pré-computados no tratamento")
+    st.markdown(
+        """
+        Parte da EDA e da comparação não reprocessa os algoritmos a cada tela:
+        ela utiliza resultados derivados já gravados em CSV. As 531 listas
+        ordenadas alimentam as métricas de grafo dos circuitos (gates de dois
+        qubits, pares distintos, densidade, grau, profundidade de dependências
+        e pressão). Os 63 conjuntos de topologias fornecem conectividade e
+        atributos sintéticos por qubit/arco. O script `visualize_avd` consolida
+        essas métricas em `metricas_grafos.csv`; os benchmarks de mapeamento
+        gravam SWAPs, erro estimado, tempo e mapeamentos em
+        `out/parte2/mapping_benchmarks.csv`.
+
+        Assim, a transformação pré-computada também integra o tratamento dos
+        dados: carga dos CSV, filtragem, agregação por família/topologia,
+        cálculo de medianas e métricas por execução. No caso selecionado, a aba
+        `Executar agora` faz o mesmo processamento ao vivo sem ler o CSV de
+        benchmarks pré-computados.
+        """
+    )
+
     st.markdown("#### Conjuntos gerados")
     st.dataframe(
         pd.DataFrame(

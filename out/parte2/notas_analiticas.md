@@ -20,11 +20,11 @@ Compara taxas de erro por família de topologia; pontos vermelhos indicam 219 ob
 
 ## 5. `05_grafo_interacoes.png`
 
-Mostra o grafo lógico não direcionado de cdkm_ripple_carry_adder_4qubits: nós são qubits lógicos, tamanho do nó indica grau, o laranja destaca os qubits de maior grau e os pares mais recorrentes, e largura/rótulo da aresta indicam a frequência de interações. Par(es) mais recorrente(s): q0–q1 (6 gates); o maior grau é dos qubits [1] (grau 3). A agregação perde ordem temporal e direção do gate, então o grafo explica afinidade estrutural, não uma rota nem um mapeamento.
+Mostra o grafo lógico não direcionado de modular_adder_6qubits: nós são qubits lógicos, tamanho do nó indica grau, o laranja destaca os qubits de maior grau e os pares mais recorrentes, e largura/rótulo da aresta indicam a frequência de interações. Par(es) mais recorrente(s): q0–q2, q1–q2 (10 gates); o maior grau é dos qubits [2] (grau 5). A agregação perde ordem temporal e direção do gate, então o grafo explica afinidade estrutural, não uma rota nem um mapeamento.
 
 ## 6. `06_grafo_topologia.png`
 
-Mostra a topologia física ring_5qubits: tamanho do nó representa grau e cor/rótulo da aresta representa a taxa de erro média entre os arcos do par, em porcentagem (em topologias densas, os rótulos são omitidos para preservar legibilidade). O maior grau total é do qubit físico [0, 1, 2, 3, 4] (entrada/saída por qubit: 0=2/2, 1=2/2, 2=2/2, 3=2/2, 4=2/2). O link com maior erro é (0, 1) (0.277%) e o menor é (3, 4) (0.113%). A visualização agrega arcos recíprocos para legibilidade; o CSV original e as métricas preservam graus e contagens direcionadas. Este contraste ajuda a formular hipóteses de posicionamento, mas não prova desempenho.
+Mostra a topologia física line_6qubits: tamanho do nó representa grau e cor/rótulo da aresta representa a taxa de erro média entre os arcos do par, em porcentagem (em topologias densas, os rótulos são omitidos para preservar legibilidade). O maior grau total é do qubit físico [1, 2, 3, 4] (entrada/saída por qubit: 1=2/2, 2=2/2, 3=2/2, 4=2/2). O link com maior erro é (1, 2) (0.178%) e o menor é (2, 3) (0.102%). A visualização agrega arcos recíprocos para legibilidade; o CSV original e as métricas preservam graus e contagens direcionadas. Este contraste ajuda a formular hipóteses de posicionamento, mas não prova desempenho.
 
 ## Comparação com soluções existentes
 
