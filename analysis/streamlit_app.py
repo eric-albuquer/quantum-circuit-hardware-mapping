@@ -470,6 +470,7 @@ def _bar_chart(
     value_axis: bool = False,
     axis_color: str = VALUE_LABEL_COLOR,
     axis_line_color: str = "#374151",
+    value_format: str = ".3~g",
 ) -> None:
     """Barras com o valor escrito na ponta de cada uma.
 
@@ -488,13 +489,14 @@ def _bar_chart(
     aparece só com os números e as duas linhas de borda (esquerda e base), sem grade nem marcas.
     ``axis_color`` e ``axis_line_color`` colorem os números e as linhas dos eixos.
     """
+    # [IA] Claude Code (Claude Sonnet 5.5) – nomes das categorias (grid, heavy-hex, linear, anel…) em preto
     category_axis = alt.Axis(
         labelAngle=0,
         labelOverlap="greedy",
         ticks=False,
         domain=value_axis,  # com eixo de valores, a linha de base também aparece
         domainColor=axis_line_color,
-        labelColor=axis_color,
+        labelColor=VALUE_LABEL_COLOR,  # nomes das categorias sempre em preto
     )
     # Ordem explícita (maior primeiro): a ordenação por canal do Altair ("-x")
     # não foi aplicada de forma confiável quando o gráfico tem camada de texto.
@@ -543,8 +545,12 @@ def _bar_chart(
                 if color == "Método"
                 else alt.Undefined
             )
+        # [IA] Claude Code (Claude Sonnet 5.5) – legenda de métodos à esquerda do gráfico de barras
         encodings["color"] = alt.Color(
-            f"{color}:N", title=color, scale=color_scale
+            f"{color}:N",
+            title=color,
+            scale=color_scale,
+            legend=alt.Legend(orient="left"),
         )
         # Só agrupa em subbarras quando a cor é diferente da categoria; se for a
         # mesma, uma barra por categoria ocupa a faixa toda e fica alinhada ao nome.
@@ -556,6 +562,7 @@ def _bar_chart(
     bars = alt.Chart(data).mark_bar(**mark_options).encode(**encodings)
     layers = [bars]
     if len(data) <= max_labelled:
+        # [IA] Claude Code (Claude Sonnet 5.5) – valores sem negrito, centralizados sobre a ponta de cada barra
         if horizontal:
             text_mark = bars.mark_text(
                 align="left", baseline="middle", dx=4, fontSize=11,
@@ -568,7 +575,7 @@ def _bar_chart(
             )
         # O texto herda a cor da barra; fixa a cor para os valores ficarem pretos.
         text_encodings: dict[str, object] = {
-            "text": alt.Text(f"{y}:Q", format=".3~g"),
+            "text": alt.Text(f"{y}:Q", format=value_format),
             "color": alt.value(VALUE_LABEL_COLOR),
         }
         if color and color != x:
@@ -788,6 +795,10 @@ def _show_metric_charts(
                         value_axis=value_axis,
                         axis_color=QUBIT_AXIS_GRAY,
                         axis_line_color=QUBIT_AXIS_LINE_GRAY,
+                        # [IA] Claude Code (Claude Sonnet 5.5) – tempo mediano com no máximo 3 casas decimais sobre as barras
+                        value_format=(
+                            ".3~f" if label == "Tempo mediano (s)" else ".3~g"
+                        ),
                     )
 
 

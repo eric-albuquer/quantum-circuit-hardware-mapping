@@ -615,48 +615,55 @@ def _show_algorithms() -> None:
             section()
 
 
+# [IA] Claude Code (Claude Sonnet 5.5) – resumo comparativo transposto (métodos nas colunas)
 def show_comparative_summary() -> None:
     st.subheader(":blue[Resumo comparativo]")
-    st.dataframe(
-        pd.DataFrame(
-            [
-                {
-                    "Método": "Busca exata",
-                    "Ideia": "Enumera todos os placements (DFS)",
-                    "Otimiza": "Erro roteado, depois SWAPs",
-                    "Garantia": "Ótimo entre placements iniciais",
-                    "Custo": "P(n,k) · roteamento",
-                    "Uso": "Referência em casos pequenos",
-                },
-                {
-                    "Método": "Multi-start + hill climbing",
-                    "Ideia": "Inícios variados + busca local troca/movimento",
-                    "Otimiza": "Erro roteado, depois SWAPs",
-                    "Garantia": "Mínimo local",
-                    "Custo": "inícios · iterações · (k²+kn) · roteamento",
-                    "Uso": "Casos médios e grandes",
-                },
-                {
-                    "Método": "Fluxo min-cost + hill climbing",
-                    "Ideia": "Atribuição ótima por custo heurístico + refino",
-                    "Otimiza": "C(q,Q), depois erro roteado",
-                    "Garantia": "Ótimo para C(q,Q); mínimo local no final",
-                    "Custo": "Polinomial + um hill climbing",
-                    "Uso": "Início informado e barato",
-                },
-                {
-                    "Método": "Qiskit SABRE",
-                    "Ideia": "Layout e SWAPs com lookahead",
-                    "Otimiza": "Heurística própria do Qiskit",
-                    "Garantia": "Nenhuma (heurística)",
-                    "Custo": "Quase linear nas portas",
-                    "Uso": "Baseline de mercado",
-                },
-            ]
-        ),
-        width="stretch",
-        hide_index=True,
+    summary = pd.DataFrame(
+        [
+            {
+                "Método": "Busca exata",
+                "Ideia": "Enumera todos os placements (DFS)",
+                "Otimiza": "Erro roteado, depois SWAPs",
+                "Garantia": "Ótimo entre placements iniciais",
+                "Custo": "P(n,k) · roteamento",
+                "Uso": "Referência em casos pequenos",
+            },
+            {
+                "Método": "Multi-start + hill climbing",
+                "Ideia": "Inícios variados + busca local troca/movimento",
+                "Otimiza": "Erro roteado, depois SWAPs",
+                "Garantia": "Mínimo local",
+                "Custo": "inícios · iterações · (k²+kn) · roteamento",
+                "Uso": "Casos médios e grandes",
+            },
+            {
+                "Método": "Fluxo min-cost + hill climbing",
+                "Ideia": "Atribuição ótima por custo heurístico + refino",
+                "Otimiza": "C(q,Q), depois erro roteado",
+                "Garantia": "Ótimo para C(q,Q); mínimo local no final",
+                "Custo": "Polinomial + um hill climbing",
+                "Uso": "Início informado e barato",
+            },
+            {
+                "Método": "Qiskit SABRE",
+                "Ideia": "Layout e SWAPs com lookahead",
+                "Otimiza": "Heurística própria do Qiskit",
+                "Garantia": "Nenhuma (heurística)",
+                "Custo": "Quase linear nas portas",
+                "Uso": "Baseline de mercado",
+            },
+        ]
     )
+    # [IA] Claude Code (Claude Sonnet 5.5) – tabela em markdown: 1ª coluna azul e nomes dos métodos em negrito
+    methods = list(summary["Método"])
+    lines = [
+        "| | " + " | ".join(f"**{method}**" for method in methods) + " |",
+        "|" + "---|" * (len(methods) + 1),
+    ]
+    for column in summary.columns.drop("Método"):
+        cells = " | ".join(str(value) for value in summary[column])
+        lines.append(f"| :blue[**{column}**] | {cells} |")
+    st.markdown("\n".join(lines))
 
 
 # [IA] Claude Code (Claude Opus 5.5) – montagem da página de apresentação
