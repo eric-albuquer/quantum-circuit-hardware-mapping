@@ -447,6 +447,14 @@ METHOD_COLORS = {
     "Qiskit SABRE": SABRE_GRAY,
 }
 FALLBACK_COLOR = "#72B7B2"
+# [IA] Claude Code (Claude Sonnet 5.5) – tradução dos nomes dos métodos para a legenda em inglês
+ENGLISH_METHOD_LABELS = {
+    "Busca exata": "Exact search",
+    "Fluxo min-cost": "Min-cost flow",
+}
+ENGLISH_METHOD_LABEL_EXPR = (
+    f"{json.dumps(ENGLISH_METHOD_LABELS)}[datum.label] || datum.label"
+)
 VALUE_LABEL_COLOR = "black"
 
 
@@ -477,6 +485,7 @@ def _bar_chart(
     axis_color: str = VALUE_LABEL_COLOR,
     axis_line_color: str = "#374151",
     value_format: str = ".3~g",
+    english_legend: bool = False,
 ) -> None:
     """Barras com o valor escrito na ponta de cada uma.
 
@@ -556,7 +565,16 @@ def _bar_chart(
             f"{color}:N",
             title=color,
             scale=color_scale,
-            legend=alt.Legend(orient="left"),
+            legend=(
+                # [IA] Claude Code (Claude Sonnet 5.5) – legenda de métodos em inglês (título e nomes)
+                alt.Legend(
+                    orient="left",
+                    title="Method",
+                    labelExpr=ENGLISH_METHOD_LABEL_EXPR,
+                )
+                if english_legend
+                else alt.Legend(orient="left")
+            ),
         )
         # Só agrupa em subbarras quando a cor é diferente da categoria; se for a
         # mesma, uma barra por categoria ocupa a faixa toda e fica alinhada ao nome.
@@ -777,6 +795,7 @@ def _show_metric_charts(
     sort_by_value: bool = False,
     bar_gap: float = 0.1,
     value_axis: bool = False,
+    english_legend: bool = False,
 ) -> None:
     """Mostra SWAPs, erro e tempo em abas com o mesmo formato."""
     chart_tabs = st.tabs(list(CHART_METRICS))
@@ -805,6 +824,7 @@ def _show_metric_charts(
                         value_format=(
                             ".3~f" if label == "Tempo mediano (s)" else ".3~g"
                         ),
+                        english_legend=english_legend,
                     )
 
 
@@ -1518,6 +1538,7 @@ with tab_comparison:
                         "Topologia",
                         bar_gap=0.65,
                         value_axis=True,
+                        english_legend=True,
                     )
 
             with scaling_tab:
