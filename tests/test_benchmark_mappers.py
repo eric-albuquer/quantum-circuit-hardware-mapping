@@ -21,7 +21,11 @@ from analysis.benchmark_mappers import (
     default_cases,
 )
 from src.circuit_graph.graph import CircuitEdge, CircuitGraph
-from src.mapping_common import RoutingResult
+from src.mapping_common import (
+    ROUTED_CANDIDATE_LIMIT,
+    RoutingResult,
+    estimate_routing_cost,
+)
 from src.topology_graph.graph import TopologyEdge, TopologyGraph
 
 
@@ -118,6 +122,11 @@ class BenchmarkScenarioTests(unittest.TestCase):
         flow_args, flow_kwargs = flow_hill_climb.call_args
         self.assertEqual(flow_args, (circuit, topology, mapping))
         self.assertTrue(callable(flow_kwargs["router"]))
+        self.assertIs(flow_kwargs["scorer"], estimate_routing_cost)
+        self.assertEqual(
+            flow_kwargs["exact_candidate_limit"],
+            ROUTED_CANDIDATE_LIMIT,
+        )
         self.assertEqual(result, (mapping, routing))
 
         with self.assertRaisesRegex(ValueError, "Unsupported local mapping"):

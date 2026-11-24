@@ -26,7 +26,9 @@ from src.mapping import (
     route_circuit,
 )
 from src.mapping_common import (
+    ROUTED_CANDIDATE_LIMIT,
     RoutingResult,
+    estimate_routing_cost,
     hill_climb_placement,
 )
 from src.mapping_flow import (
@@ -285,6 +287,8 @@ def _run_local_algorithm(
             topology,
             mapping,
             router=cached_route,
+            scorer=estimate_routing_cost,
+            exact_candidate_limit=ROUTED_CANDIDATE_LIMIT,
         )
         return mapping, cached_route(circuit, topology, mapping)
     else:

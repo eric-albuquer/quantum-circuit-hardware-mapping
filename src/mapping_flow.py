@@ -2,7 +2,9 @@ import heapq
 
 from src.circuit_graph.graph import CircuitGraph
 from src.mapping_common import (
+    ROUTED_CANDIDATE_LIMIT,
     RoutingResult,
+    estimate_routing_cost,
     hill_climb_placement as _hill_climb_placement,
     validate_mapping,
     route_circuit,
@@ -294,6 +296,8 @@ def main() -> None:
         topology,
         initial_mapping,
         router=cached_route,
+        scorer=estimate_routing_cost,
+        exact_candidate_limit=ROUTED_CANDIDATE_LIMIT,
     )
     print(f"Initial mapping: {initial_mapping}")
     print(f"Hill-climbing mapping: {mapped}")
