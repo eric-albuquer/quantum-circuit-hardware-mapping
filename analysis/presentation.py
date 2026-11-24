@@ -697,7 +697,8 @@ def _show_dataset_generation(circuits: pd.DataFrame) -> None:
 
     real_box, synthetic_box = st.columns(2)
     with real_box.container(border=True):
-        st.markdown("#### :green[Dados reais]")
+        # [IA] Claude Code (Claude Sonnet 5.5) – títulos em preto (cor padrão do texto)
+        st.markdown("#### Dados reais")
         st.markdown(
             f"""
             - **Circuitos de algoritmos** ({len(real_circuits):,} circuitos,
@@ -714,7 +715,7 @@ def _show_dataset_generation(circuits: pd.DataFrame) -> None:
             """
         )
     with synthetic_box.container(border=True):
-        st.markdown("#### :orange[Dados sintéticos]")
+        st.markdown("#### Dados sintéticos")
         st.markdown(
             f"""
             - **Erro das conexões de hardware** (`gate_error_rate` e
@@ -728,7 +729,8 @@ def _show_dataset_generation(circuits: pd.DataFrame) -> None:
               profundidades 10, 20 e 30. Não representam um algoritmo.
             """
         )
-    st.warning(
+    # [IA] Claude Code (Claude Sonnet 5.5) – aviso no mesmo estilo (st.info) da nota sobre o erro estimado
+    st.info(
         "As taxas de erro do hardware **não são medições de um processador "
         "real**: não há calibração, data nem dispositivo de origem. Por isso, "
         "o erro estimado dos mapeamentos serve para comparar algoritmos entre "
