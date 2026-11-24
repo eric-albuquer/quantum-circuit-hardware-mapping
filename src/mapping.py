@@ -11,6 +11,8 @@ from typing import Literal
 from src.circuit_graph.graph import CircuitGraph
 from src.mapping_common import (
     RoutingResult,
+    ROUTED_CANDIDATE_LIMIT,
+    estimate_routing_cost,
     hill_climb_placement,
     interaction_pairs,
     route_circuit,
@@ -250,6 +252,8 @@ def _improve_placement(
         topology,
         mapping,
         router=route_circuit,
+        scorer=estimate_routing_cost,
+        exact_candidate_limit=ROUTED_CANDIDATE_LIMIT,
     )
 
 
@@ -337,11 +341,11 @@ def heuristic_map(
     seed: int | None = 0,
     max_workers: int | None = None,
 ) -> dict[int, int]:
-    """Find a placement with multi-start hill climbing over routed outcomes.
+    """Find a placement with multi-start hill climbing using a routing estimate.
 
-    Every neighborhood candidate is routed in circuit order and scored by
-    expected error rate before SWAP count. Distinct local minima and preserved
-    strategy starts are ranked by the same routed objective.
+    Neighborhood candidates are scored from pairwise shortest paths, without
+    running the router. Distinct local minima and preserved strategy starts are
+    then routed and ranked by exact routed error rate before SWAP count.
     Initial candidates are split evenly across random, degree-based, and
     most-frequent interaction-pair starts. The first random placement and the
     unperturbed start from each deterministic strategy are preserved for

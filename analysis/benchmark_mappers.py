@@ -25,7 +25,10 @@ from src.mapping import (
     optimal_map,
     route_circuit,
 )
-from src.mapping_common import hill_climb_placement
+from src.mapping_common import (
+    RoutingResult,
+    hill_climb_placement,
+)
 from src.mapping_flow import (
     build_min_cost_max_flow_graph,
     compute_max_flow_min_cost,
@@ -41,8 +44,8 @@ ALGORITHMS = (
     "Fluxo min-cost + hill climb",
     "Qiskit SABRE",
 )
-CIRCUIT_FAMILIES = ("ghz", "modular_adder", "qft", "qaoa")
-DEFAULT_CIRCUIT_FAMILIES = ("ghz", "qft")
+CIRCUIT_FAMILIES = ("ghz", "modular_adder", "qft")
+DEFAULT_CIRCUIT_FAMILIES = ("ghz", "qft", "qaoa")
 TOPOLOGY_FAMILIES = (
     "line",
     "ring",
@@ -51,9 +54,9 @@ TOPOLOGY_FAMILIES = (
     "heavy_hex",
     "heavy_square",
 )
-DEFAULT_TOPOLOGY_FAMILIES = ("line", "ring")
-SAME_SIZE_TOPOLOGY_FAMILIES = ("line", "ring", "full")
-DEFAULT_QUBIT_COUNTS = (4, 6, 8, 10)
+DEFAULT_TOPOLOGY_FAMILIES = ("line", "ring", "grid", "heavy_hex")
+DEFAULT_QUBIT_COUNTS = (4, 8, 12, 16)
+PHYSICAL_VARIANTS_PER_FAMILY = 1
 DEFAULT_EXACT_MAX_QUBITS = 0
 
 
@@ -92,21 +95,10 @@ def default_cases(
                 for path in topology_paths[family]
                 if _qubit_count(path) >= qubit_count
             ]
-            if family in SAME_SIZE_TOPOLOGY_FAMILIES:
-                compatible_topologies = [
-                    path
-                    for path in compatible_topologies
-                    if _qubit_count(path) == qubit_count
-                ]
-            elif compatible_topologies:
-                smallest_size = min(
-                    _qubit_count(path) for path in compatible_topologies
-                )
-                compatible_topologies = [
-                    path
-                    for path in compatible_topologies
-                    if _qubit_count(path) == smallest_size
-                ]
+            compatible_topologies = sorted(
+                compatible_topologies,
+                key=lambda path: (_qubit_count(path), path.name),
+            )[:PHYSICAL_VARIANTS_PER_FAMILY]
             topologies.extend(compatible_topologies)
         cases.extend(
             (circuit, topology)
@@ -240,6 +232,67 @@ def _run_sabre(
     )
 
 
+def _run_local_algorithm(
+    algorithm: str,
+    circuit: CircuitGraph,
+    topology: TopologyGraph,
+    initial_candidates: int,
+    seed: int,
+) -> tuple[dict[int, int], RoutingResult]:
+    if algorithm == ALGORITHMS[1]:
+        mapping = heuristic_map(
+            circuit,
+            topology,
+            initial_candidates=initial_candidates,
+            seed=seed,
+            max_workers=1,
+        )
+    elif algorithm == ALGORITHMS[2]:
+        flow_graph = build_min_cost_max_flow_graph(circuit, topology)
+        max_flow, _, residual_graph = compute_max_flow_min_cost(
+            flow_graph,
+            "s",
+            "t",
+        )
+        if max_flow != circuit.qubit_count:
+            raise ValueError("Min-cost flow could not assign every logical qubit")
+        mapping = extract_mapping_from_residual_graph(
+            circuit,
+            topology,
+            residual_graph,
+        )
+        routed_results: dict[tuple[int, ...], RoutingResult] = {}
+
+        def cached_route(
+            candidate_circuit: CircuitGraph,
+            candidate_topology: TopologyGraph,
+            candidate_mapping: dict[int, int],
+        ) -> RoutingResult:
+            key = tuple(
+                candidate_mapping[logical]
+                for logical in range(candidate_circuit.qubit_count)
+            )
+            if key not in routed_results:
+                routed_results[key] = route_circuit(
+                    candidate_circuit,
+                    candidate_topology,
+                    candidate_mapping,
+                )
+            return routed_results[key]
+
+        mapping, _ = hill_climb_placement(
+            circuit,
+            topology,
+            mapping,
+            router=cached_route,
+        )
+        return mapping, cached_route(circuit, topology, mapping)
+    else:
+        raise ValueError(f"Unsupported local mapping algorithm: {algorithm}")
+
+    return mapping, route_circuit(circuit, topology, mapping)
+
+
 def _benchmark_case(
     circuit_path: Path,
     topology_path: Path,
@@ -298,50 +351,24 @@ def _benchmark_case(
                 )
             )
 
-        start = time.perf_counter()
-        mapping = heuristic_map(
-            circuit,
-            topology,
-            initial_candidates=initial_candidates,
-            seed=run_seed,
-            max_workers=1,
-        )
-        routing = route_circuit(circuit, topology, mapping)
-        records.append(
-            _record(
-                ALGORITHMS[1], circuit_path, topology_path, run, run_seed,
-                time.perf_counter() - start, routing.swap_count,
-                routing.expected_error_rate, mapping, routing.final_mapping,
-                possible_mappings, circuit.qubit_count, topology.qubit_count,
+        for algorithm in (ALGORITHMS[1], ALGORITHMS[2]):
+            start = time.perf_counter()
+            mapping, routing = _run_local_algorithm(
+                algorithm,
+                circuit,
+                topology,
                 initial_candidates,
+                run_seed,
             )
-        )
-
-        start = time.perf_counter()
-        flow_graph = build_min_cost_max_flow_graph(circuit, topology)
-        max_flow, _, residual_graph = compute_max_flow_min_cost(
-            flow_graph,
-            "s",
-            "t",
-        )
-        if max_flow != circuit.qubit_count:
-            raise ValueError("Min-cost flow could not assign every logical qubit")
-        mapping = extract_mapping_from_residual_graph(
-            circuit,
-            topology,
-            residual_graph,
-        )
-        mapping, _ = hill_climb_placement(circuit, topology, mapping)
-        routing = route_circuit(circuit, topology, mapping)
-        records.append(
-            _record(
-                ALGORITHMS[2], circuit_path, topology_path, run, run_seed,
-                time.perf_counter() - start, routing.swap_count,
-                routing.expected_error_rate, mapping, routing.final_mapping,
-                possible_mappings, circuit.qubit_count, topology.qubit_count,
-                initial_candidates,
+            records.append(
+                _record(
+                    algorithm, circuit_path, topology_path, run, run_seed,
+                    time.perf_counter() - start, routing.swap_count,
+                    routing.expected_error_rate, mapping, routing.final_mapping,
+                    possible_mappings, circuit.qubit_count, topology.qubit_count,
+                    initial_candidates,
+                )
             )
-        )
 
         start = time.perf_counter()
         (

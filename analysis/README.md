@@ -68,10 +68,12 @@ The interaction graph lists the most frequent pair names only when there are
 at most six tied pairs; larger groups are summarized by their count.
 
 The figures characterize the precomputed datasets; they do not benchmark
-mapping algorithms. The benchmark below measures multi-start heuristic,
+mapping algorithms. The benchmark below compares multi-start heuristic,
 min-cost-flow-seeded mapping, and Qiskit's SABRE for the same
-circuit/topology pairs, with five runs per case and method. Exact search is
-limited to selected small cases.
+circuit/topology pairs. Multi-start uses the routing-cost estimate to search
+placements and ranks its finalists with the router. The flow-based method uses
+the estimate to shortlist neighbors, then routes the three most promising and
+accepts only actual improvements. Exact search is disabled by default.
 
 Run a repeatable comparison of the implemented methods and Qiskit SABRE, then
 launch the Streamlit dashboard:
@@ -87,19 +89,20 @@ The default batch is a compact scaling dataset for the comparison tab:
 python -m analysis.benchmark_mappers --runs 3
 ```
 
-It contains GHZ and QFT circuits at 4, 6, 8, and 10 logical qubits on line and
-ring topologies: 16 scenarios, with three runs each for multi-start,
-min-cost flow plus hill climbing, and Qiskit SABRE. Using line and ring keeps
-physical size equal to logical size, making the growth in runtime, estimated
-error, and SWAPs easier to compare. Exact search is disabled for batch runs by
-default.
+The default batch contains GHZ, QFT, and QAOA circuits at 4, 8, 12, and 16
+logical qubits on line, ring, grid, and heavy-hex topologies. It selects the
+two smallest available physical devices in each topology family that fit each
+circuit, for 96 scenarios and three runs per algorithm (multi-start,
+min-cost-flow plus hill climbing, and Qiskit SABRE). This compares both
+topology shape and physical-qubit overhead. Exact search is disabled for batch
+runs by default.
 
-Broader batches can select more circuit and topology families, for example
+Broader batches can select different circuit and topology families, for example
 `--circuit-family qaoa --topology-family grid --topology-family heavy_hex`.
-Available families are GHZ, modular-adder, QFT, and QAOA circuits, and `line`,
-`ring`, `full`, `grid`, `heavy_hex`, and `heavy_square` topologies. Line, ring,
-and full topologies use the same physical size as the circuit; the other
-families use the smallest available topology that fits. Use repeated
+Available circuit families are GHZ, modular-adder, QFT, and QAOA; topology
+families are `line`, `ring`, `full`, `grid`, `heavy_hex`, and `heavy_square`.
+For every selected topology family, the batch uses the two smallest available
+devices that fit. Use repeated
 `--qubit-count`, `--circuit-family`, and `--topology-family` options to expand
 the selection, or repeated `--circuit` and `--topology` options for specific
 input files. At least three runs are required. The CSV records

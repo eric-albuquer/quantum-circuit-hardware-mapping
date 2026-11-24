@@ -14,6 +14,7 @@ from src.mapping import (
     optimal_map,
     route_circuit,
 )
+from src.mapping_common import estimate_routing_cost, hill_climb_placement
 from src.topology_graph.graph import TopologyEdge, TopologyGraph
 
 
@@ -129,7 +130,85 @@ class MappingTests(unittest.TestCase):
         self.assertAlmostEqual(heuristic_cost[0], 1.0 - 0.9**2)
         self.assertAlmostEqual(optimal_error, 1.0 - 0.9**2)
 
-    def test_hill_climbing_scores_the_complete_routed_result(self):
+    def test_routing_cost_estimate_models_swap_gates_on_shortest_path(self):
+        circuit = make_circuit(2, [(0, 1)])
+        topology = make_topology([(0, 1), (1, 2)], 3)
+
+        estimated_error, estimated_swaps = estimate_routing_cost(
+            circuit,
+            topology,
+            {0: 0, 1: 2},
+        )
+
+        self.assertAlmostEqual(estimated_error, 1.0 - 0.99**4)
+        self.assertEqual(estimated_swaps, 1)
+
+    def test_hill_climbing_routes_candidates_when_refining(self):
+        circuit = make_circuit(2, [(0, 1)])
+        topology = make_topology([(0, 1), (1, 2)], 3)
+
+        with patch(
+            "src.mapping.route_circuit",
+            wraps=route_circuit,
+        ) as route:
+            mapping, estimated_cost = _improve_placement(
+                circuit,
+                topology,
+                {0: 0, 1: 2},
+            )
+
+        self.assertGreater(route.call_count, 0)
+        self.assertEqual(len(topology.path_matrix[mapping[0]][mapping[1]]), 2)
+        self.assertAlmostEqual(estimated_cost[0], 0.01)
+        self.assertEqual(estimated_cost[1], 0)
+
+    def test_hill_climb_routes_only_top_estimated_candidates_and_accepts_real_gain(self):
+        circuit = make_circuit(2, [(0, 1)])
+        topology = make_topology([(0, 1), (1, 2)], 3)
+        proxy_scores = {
+            (1, 2): (0.1, 0),
+            (0, 1): (0.2, 0),
+            (2, 0): (0.3, 0),
+            (1, 0): (0.4, 0),
+            (2, 1): (0.5, 0),
+        }
+        routed_scores = {
+            (0, 2): (0.5, 5),
+            (1, 2): (0.6, 0),
+            (0, 1): (0.4, 9),
+            (1, 0): (0.6, 0),
+            (2, 1): (0.7, 0),
+        }
+        routed_placements = []
+
+        def score_candidate(_circuit, _topology, mapping):
+            key = (mapping[0], mapping[1])
+            return proxy_scores.get(key, (0.9, 0))
+
+        def route_candidate(_circuit, _topology, mapping):
+            key = (mapping[0], mapping[1])
+            routed_placements.append(key)
+            error_rate, swap_count = routed_scores[key]
+            return RoutingResult(swap_count, error_rate, mapping.copy())
+
+        mapping, cost = hill_climb_placement(
+            circuit,
+            topology,
+            {0: 0, 1: 2},
+            router=route_candidate,
+            scorer=score_candidate,
+            exact_candidate_limit=2,
+        )
+
+        self.assertEqual(mapping, {0: 0, 1: 1})
+        self.assertEqual(cost, (0.4, 9))
+        self.assertEqual(
+            routed_placements,
+            [(0, 2), (1, 2), (0, 1), (1, 0), (2, 1)],
+        )
+        self.assertNotIn((2, 0), routed_placements)
+
+    def test_hill_climbing_estimate_handles_certain_error(self):
         circuit = make_circuit(2, [(0, 1)])
         topology = TopologyGraph(
             [
@@ -152,9 +231,13 @@ class MappingTests(unittest.TestCase):
             topology,
             {0: 0, 1: 2, 2: 3, 3: 4},
         )
-        full_cost = routed_placement_cost(circuit, topology, mapping)
-        self.assertAlmostEqual(delta_cost[0], full_cost[0])
-        self.assertEqual(delta_cost[1], full_cost[1])
+        routed_cost = route_circuit(circuit, topology, mapping)
+        actual_cost = (
+            routed_cost.expected_error_rate,
+            routed_cost.swap_count,
+        )
+        self.assertAlmostEqual(delta_cost[0], actual_cost[0])
+        self.assertEqual(delta_cost[1], actual_cost[1])
 
         logical_qubits = list(range(circuit.qubit_count))
         for index, logical_1 in enumerate(logical_qubits):
@@ -163,10 +246,12 @@ class MappingTests(unittest.TestCase):
                     mapping[logical_2],
                     mapping[logical_1],
                 )
-                self.assertGreaterEqual(
-                    routed_placement_cost(circuit, topology, mapping),
-                    full_cost,
+                neighbor = route_circuit(circuit, topology, mapping)
+                neighbor_cost = (
+                    neighbor.expected_error_rate,
+                    neighbor.swap_count,
                 )
+                self.assertGreaterEqual(neighbor_cost, actual_cost)
                 mapping[logical_1], mapping[logical_2] = (
                     mapping[logical_2],
                     mapping[logical_1],
@@ -177,10 +262,12 @@ class MappingTests(unittest.TestCase):
             original_physical = mapping[logical]
             for physical in unused_physical:
                 mapping[logical] = physical
-                self.assertGreaterEqual(
-                    routed_placement_cost(circuit, topology, mapping),
-                    full_cost,
+                neighbor = route_circuit(circuit, topology, mapping)
+                neighbor_cost = (
+                    neighbor.expected_error_rate,
+                    neighbor.swap_count,
                 )
+                self.assertGreaterEqual(neighbor_cost, actual_cost)
             mapping[logical] = original_physical
 
     def test_topology_precomputes_minimum_error_paths_with_dijkstra(self):

@@ -11,6 +11,7 @@ from src.topology_graph.graph import TopologyGraph
 
 _ROUTING_LOOKAHEAD = 3
 _ROUTING_BEAM_WIDTH = 8
+ROUTED_CANDIDATE_LIMIT = 3
 
 
 @dataclass(frozen=True)
@@ -211,6 +212,40 @@ def route_circuit(
     )
 
 
+def estimate_routing_cost(
+    circuit: CircuitGraph,
+    topology: TopologyGraph,
+    mapping: dict[int, int],
+) -> tuple[float, int]:
+    """Estimate routed error and SWAP count without simulating routing."""
+    validate_mapping(circuit, topology, mapping)
+    total_log_risk = 0.0
+    estimated_swaps = 0
+
+    for logical_1, logical_2, interaction_count in circuit.interaction_pairs:
+        path = topology.path_matrix[mapping[logical_1]][mapping[logical_2]]
+        if not path:
+            raise ValueError("Interacting qubits are disconnected in the topology")
+
+        edge_count = len(path) - 1
+        estimated_swaps += interaction_count * max(0, edge_count - 1)
+        for edge_index, (physical_1, physical_2) in enumerate(
+            zip(path, path[1:])
+        ):
+            error_rate = topology.link_error_rate(physical_1, physical_2)
+            edge_log_risk = (
+                float("inf")
+                if error_rate == 1.0
+                else -math.log1p(-error_rate)
+            )
+            swap_gate_multiplier = 3 if edge_index < edge_count - 1 else 1
+            total_log_risk += (
+                interaction_count * swap_gate_multiplier * edge_log_risk
+            )
+
+    return -math.expm1(-total_log_risk), estimated_swaps
+
+
 def hill_climb_placement(
     circuit: CircuitGraph,
     topology: TopologyGraph,
@@ -218,25 +253,75 @@ def hill_climb_placement(
     router: Callable[
         [CircuitGraph, TopologyGraph, dict[int, int]],
         RoutingResult,
-    ] = route_circuit,
+    ] | None = None,
+    *,
+    scorer: Callable[
+        [CircuitGraph, TopologyGraph, dict[int, int]],
+        tuple[float, int],
+    ] | None = None,
+    exact_candidate_limit: int | None = None,
 ) -> tuple[dict[int, int], tuple[float, int]]:
-    """Find a local minimum using complete routed error and SWAP count."""
+    """Find a local minimum, optionally routing only top-scored candidates."""
+    if router is not None and scorer is not None and exact_candidate_limit is None:
+        raise ValueError("Specify either router or scorer, not both")
+    if exact_candidate_limit is not None:
+        if exact_candidate_limit < 1:
+            raise ValueError("exact_candidate_limit must be at least 1")
+        if scorer is None:
+            raise ValueError("exact_candidate_limit requires a candidate scorer")
     validate_mapping(circuit, topology, mapping)
     current_mapping = mapping.copy()
     logical_qubits = list(range(circuit.qubit_count))
     score_cache: dict[tuple[int, ...], tuple[float, int]] = {}
+    routed_score_cache: dict[tuple[int, ...], tuple[float, int]] = {}
+    route = route_circuit if router is None else router
+
+    def placement_score(candidate: dict[int, int]) -> tuple[float, int]:
+        key = tuple(candidate[logical] for logical in logical_qubits)
+        if key not in score_cache:
+            if scorer is not None:
+                score_cache[key] = scorer(circuit, topology, candidate)
+            else:
+                result = route(circuit, topology, candidate)
+                score_cache[key] = (
+                    result.expected_error_rate,
+                    result.swap_count,
+                )
+        return score_cache[key]
 
     def routed_score(candidate: dict[int, int]) -> tuple[float, int]:
         key = tuple(candidate[logical] for logical in logical_qubits)
-        if key not in score_cache:
-            result = router(circuit, topology, candidate)
-            score_cache[key] = (result.expected_error_rate, result.swap_count)
-        return score_cache[key]
+        if key not in routed_score_cache:
+            result = route(circuit, topology, candidate)
+            routed_score_cache[key] = (
+                result.expected_error_rate,
+                result.swap_count,
+            )
+        return routed_score_cache[key]
 
-    current_score = routed_score(current_mapping)
+    refined_search = exact_candidate_limit is not None
+    current_score = (
+        routed_score(current_mapping)
+        if refined_search
+        else placement_score(current_mapping)
+    )
     while True:
         best_mapping: dict[int, int] | None = None
         best_score = current_score
+        estimated_candidates: dict[
+            tuple[int, ...],
+            tuple[dict[int, int], tuple[float, int]],
+        ] = {}
+
+        def consider(candidate: dict[int, int]) -> None:
+            nonlocal best_mapping, best_score
+            candidate_score = placement_score(candidate)
+            if refined_search:
+                key = tuple(candidate[logical] for logical in logical_qubits)
+                estimated_candidates[key] = (candidate, candidate_score)
+            elif candidate_score < best_score:
+                best_mapping = candidate
+                best_score = candidate_score
 
         for index, logical_1 in enumerate(logical_qubits):
             for logical_2 in logical_qubits[index + 1 :]:
@@ -245,16 +330,24 @@ def hill_climb_placement(
                     candidate[logical_2],
                     candidate[logical_1],
                 )
-                candidate_score = routed_score(candidate)
-                if candidate_score < best_score:
-                    best_mapping = candidate
-                    best_score = candidate_score
+                consider(candidate)
 
         unused_physical = set(topology.graph) - set(current_mapping.values())
         for logical in logical_qubits:
             for physical in sorted(unused_physical):
                 candidate = current_mapping.copy()
                 candidate[logical] = physical
+                consider(candidate)
+
+        if exact_candidate_limit is not None:
+            ranked_candidates = sorted(
+                estimated_candidates.values(),
+                key=lambda candidate: (
+                    candidate[1],
+                    tuple(candidate[0][logical] for logical in logical_qubits),
+                ),
+            )
+            for candidate, _ in ranked_candidates[:exact_candidate_limit]:
                 candidate_score = routed_score(candidate)
                 if candidate_score < best_score:
                     best_mapping = candidate

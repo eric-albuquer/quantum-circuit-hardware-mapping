@@ -590,7 +590,7 @@ m_{t+1}
  m'\in\{m_t\}\cup\mathcal{N}_{\mathrm{swap}}(m_t)\cup
  \mathcal{N}_{\mathrm{move}}(m_t)
 }{\mathrm{arg\,min}_{\mathrm{lex}}}
-\left(E_{\mathrm{route}}(m'),S_{\mathrm{route}}(m')\right).
+\left(E_{\mathrm{estimate}}(m'),S_{\mathrm{estimate}}(m')\right).
 $$
 
 If the minimizer is \(m_t\), the search stops; ties with the current placement
@@ -602,13 +602,25 @@ all placements and not a guarantee of a global optimum. Its result depends
 on the starting candidate, which is why the implementation uses random,
 degree-based, and most-frequent-pair starts.
 
-Each candidate evaluation routes the full ordered operation sequence, so the
-hill-climb objective accounts for dynamic SWAPs and their physical errors.
-Scores are cached for repeated visits to the same placement. The placement
-space is finite and only strictly improving moves are accepted, so each
-hill-climbing run terminates at a neighborhood-local minimum. This exact
-routed evaluation is more expensive than scoring an interaction-count proxy;
-parallel execution across starting candidates remains available.
+Each candidate evaluation uses a routing-cost estimate rather than running the
+router. For every interacting logical pair, the estimator uses the topology's
+precomputed shortest-error path, counts one predicted SWAP per path edge except
+the final interaction edge, and combines the modeled error of those SWAP gates
+and the final two-qubit gate. Repeated interactions are weighted by their
+frequency. This is a static estimate: it does not model how earlier routing
+changes later placements or the router's lookahead decisions. Scores are cached
+for repeated visits to the same placement. The placement space is finite and
+only strictly improving moves are accepted, so each hill-climbing run
+terminates at a neighborhood-local minimum under this estimate.
+
+After hill climbing, `heuristic_map` still runs the exact router on preserved
+starting placements and distinct local minima, and chooses among them using
+the resulting routed error and SWAP count. `hill_climb_placement` also supports
+the exact router as its default scorer for callers that require the previous
+behavior. The flow-based hill climb uses the estimate to rank neighbors, then
+runs the exact router on the three most promising candidates and accepts only
+an exact improvement. Routed scores are cached, including the final placement,
+to avoid repeating expensive evaluations.
 
 Hill-climb starts are processed in parallel by default, using up to the
 available CPU count; `max_workers=1` disables multiprocessing. This parallelism

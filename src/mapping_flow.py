@@ -1,8 +1,12 @@
 import heapq
 
 from src.circuit_graph.graph import CircuitGraph
-from src.mapping_common import hill_climb_placement as _hill_climb_placement
-from src.mapping_common import validate_mapping
+from src.mapping_common import (
+    RoutingResult,
+    hill_climb_placement as _hill_climb_placement,
+    validate_mapping,
+    route_circuit,
+)
 from src.topology_graph.graph import TopologyGraph
 
 hill_climb_placement = _hill_climb_placement
@@ -266,10 +270,30 @@ def main() -> None:
         residual_graph,
     )
 
+    routed_results: dict[tuple[int, ...], RoutingResult] = {}
+
+    def cached_route(
+        candidate_circuit: CircuitGraph,
+        candidate_topology: TopologyGraph,
+        candidate_mapping: dict[int, int],
+    ) -> RoutingResult:
+        key = tuple(
+            candidate_mapping[logical]
+            for logical in range(candidate_circuit.qubit_count)
+        )
+        if key not in routed_results:
+            routed_results[key] = route_circuit(
+                candidate_circuit,
+                candidate_topology,
+                candidate_mapping,
+            )
+        return routed_results[key]
+
     mapped, placement_cost = _hill_climb_placement(
         circuit,
         topology,
         initial_mapping,
+        router=cached_route,
     )
     print(f"Initial mapping: {initial_mapping}")
     print(f"Hill-climbing mapping: {mapped}")
