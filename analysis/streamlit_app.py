@@ -12,6 +12,7 @@ import pandas as pd
 import streamlit as st
 
 # [IA] Claude Code (Claude Opus 5.5) – importação da página de apresentação
+from analysis.avd_tab import CASE_CIRCUIT, CASE_TOPOLOGY, show_avd_analysis
 from analysis.labels import dataset_label
 from analysis.presentation import (
     show_comparative_summary,
@@ -1125,8 +1126,14 @@ if not benchmarks.empty:
     benchmarks = benchmarks.loc[benchmark_rows].copy()
 
 # [IA] Claude Code (Claude Opus 5.5) – aba de apresentação e tabelas de dados recolhidas
-tab_overview, tab_eda, tab_case, tab_comparison = st.tabs(
-    ["Apresentação", "EDA", "Caso selecionado", "Comparação de algoritmos"]
+tab_overview, tab_eda, tab_case, tab_comparison, tab_avd = st.tabs(
+    [
+        "Apresentação",
+        "EDA",
+        "Caso selecionado",
+        "Comparação de algoritmos",
+        "Análise AVD",
+    ]
 )
 
 with tab_overview:
@@ -1614,3 +1621,61 @@ with tab_comparison:
                     width="stretch",
                     hide_index=True,
                 )
+
+# [IA] Claude Code (Claude Sonnet 5.5) – execução com os valores padrão de "Executar agora" para a aba AVD
+@st.cache_data(show_spinner="Executando os algoritmos do caso com os valores padrão...")
+def _default_live_table(circuit_path: str, topology_path: str) -> pd.DataFrame | None:
+    try:
+        records = _run_case_in_subprocess(
+            Path(circuit_path), Path(topology_path),
+            runs=5, initial_candidates=10, seed=42, max_exact_placements=100_000,
+            on_progress=lambda done, total: None,
+        )
+    except Exception:  # noqa: BLE001 - a aba mostra um aviso se a execução falhar
+        return None
+    return pd.DataFrame(records)
+
+
+# [IA] Claude Code (Claude Sonnet 5.5) – aba de análise exploratória e explanatória (AVD)
+with tab_avd:
+    _avd_circuit_path = (
+        ROOT / "datasets" / "interaction_order" / "algorithms" / "modular_adder"
+        / f"{CASE_CIRCUIT}_ordered_interactions.csv"
+    )
+    _avd_topology_path = (
+        ROOT / "datasets" / "topologies" / "line"
+        / f"{CASE_TOPOLOGY}_weighted_edges.csv"
+    )
+    show_avd_analysis(
+        benchmarks,
+        _load_graph_details(
+            str(_avd_circuit_path),
+            _avd_circuit_path.stat().st_mtime,
+            str(_avd_topology_path),
+            _avd_topology_path.stat().st_mtime,
+        ),
+        ROOT,
+        bar_chart=_bar_chart,
+        line_chart=_line_chart,
+        quadrant_matrix=_quadrant_matrix,
+        median_metrics=_median_metrics,
+        show_metric_charts=_show_metric_charts,
+        live_table=_default_live_table(
+            str(_avd_circuit_path), str(_avd_topology_path)
+        ),
+        method_scale=alt.Scale(
+            domain=["Multi-start", "Fluxo min-cost", "Qiskit SABRE"],
+            range=[
+                METHOD_COLORS["Multi-start"],
+                METHOD_COLORS["Fluxo min-cost"],
+                METHOD_COLORS["Qiskit SABRE"],
+            ],
+        ),
+        shape_scale=_method_shape_scale(
+            ["Multi-start", "Fluxo min-cost", "Qiskit SABRE"]
+        ),
+        light_blue=LIGHT_BLUE,
+        dark_blue=DARK_BLUE,
+        axis_gray=QUBIT_AXIS_GRAY,
+        axis_line_gray=QUBIT_AXIS_LINE_GRAY,
+    )
